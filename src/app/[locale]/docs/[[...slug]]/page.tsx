@@ -19,6 +19,7 @@ import { SiteName } from '@/components/docs/SiteName'
 import { withLocalePrefix } from '@/lib/locale-path'
 import { source } from '@/lib/source'
 import { loadRuntimeThemeState } from '@/lib/theme-settings'
+import { cn } from '@/lib/utils'
 
 function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
@@ -35,46 +36,8 @@ function getMDXComponents(components?: MDXComponents): MDXComponents {
   }
 }
 
-export default async function Page(props: PageProps<'/[locale]/docs/[[...slug]]'>) {
-  const params = await props.params
-  setRequestLocale(params.locale)
-  const isApiReferencePage = params.slug?.[0] === 'api-reference'
-
-  const isOwnerGuideEnabled = process.env.FORK_OWNER_GUIDE === 'true'
-  if (params.slug?.[0] === 'owners' && !isOwnerGuideEnabled) {
-    redirect('/docs/users')
-  }
-
-  const page = source.getPage(params.slug)
-  if (!page) {
-    redirect('/docs/users')
-  }
-
-  const localizedPageUrl = withLocalePrefix(page.url, params.locale as SupportedLocale)
-  const markdownUrl = `${localizedPageUrl}.mdx`
-  const MDX = page.data.body
-
-  return (
-    <DocsPage
-      toc={page.data.toc}
-      full={isApiReferencePage || page.data.full}
-      tableOfContent={{
-        style: 'clerk',
-      }}
-    >
-      <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
-      <div className="-mt-4 flex flex-wrap items-center gap-2 border-b pb-4">
-        <ViewOptions markdownUrl={markdownUrl} />
-        <DiscordLink className="h-8.5">
-          Get Help
-        </DiscordLink>
-      </div>
-      <DocsBody className={isApiReferencePage ? 'max-w-none' : undefined}>
-        <MDX components={getMDXComponents()} />
-      </DocsBody>
-    </DocsPage>
-  )
+function isOwnerGuideEnabled() {
+  return process.env.FORK_OWNER_GUIDE === 'true'
 }
 
 export async function generateStaticParams() {
@@ -87,8 +50,7 @@ export async function generateMetadata(props: PageProps<'/[locale]/docs/[[...slu
   const runtimeTheme = await loadRuntimeThemeState()
   const siteDocumentationTitle = `${runtimeTheme.site.name} Documentation`
 
-  const isOwnerGuideEnabled = JSON.parse(process.env.FORK_OWNER_GUIDE || 'false')
-  if (params.slug?.[0] === 'owners' && !isOwnerGuideEnabled) {
+  if (params.slug?.[0] === 'owners' && !isOwnerGuideEnabled()) {
     notFound()
   }
 
@@ -104,4 +66,57 @@ export async function generateMetadata(props: PageProps<'/[locale]/docs/[[...slu
     },
     description: page.data.description,
   }
+}
+
+export default async function Page(props: PageProps<'/[locale]/docs/[[...slug]]'>) {
+  const params = await props.params
+  setRequestLocale(params.locale)
+
+  if (params.slug?.[0] === 'owners' && !isOwnerGuideEnabled()) {
+    redirect('/docs/users')
+  }
+
+  const page = source.getPage(params.slug)
+  if (!page) {
+    redirect('/docs/users')
+  }
+
+  const localizedPageUrl = withLocalePrefix(page.url, params.locale as SupportedLocale)
+  const markdownUrl = `${localizedPageUrl}.mdx`
+  const MDX = page.data.body
+  const useFullLayout = Boolean(page.data.full)
+
+  return (
+    <DocsPage
+      toc={page.data.toc}
+      full={useFullLayout}
+      tableOfContent={{
+        style: 'clerk',
+      }}
+    >
+      <div className="border-b pb-4 lg:pb-0">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <DocsTitle>{page.data.title}</DocsTitle>
+            <DocsDescription>{page.data.description}</DocsDescription>
+          </div>
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
+            <ViewOptions markdownUrl={markdownUrl} />
+            <DiscordLink className="h-8.5">
+              Get Help
+            </DiscordLink>
+          </div>
+        </div>
+        <div className="-mt-4 flex flex-wrap items-center gap-2 lg:hidden">
+          <ViewOptions markdownUrl={markdownUrl} />
+          <DiscordLink className="h-8.5">
+            Get Help
+          </DiscordLink>
+        </div>
+      </div>
+      <DocsBody className={cn({ 'max-w-none': useFullLayout })}>
+        <MDX components={getMDXComponents()} />
+      </DocsBody>
+    </DocsPage>
+  )
 }

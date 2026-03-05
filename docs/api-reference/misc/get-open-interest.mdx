@@ -1,21 +1,10 @@
 ---
 title: Get Open Interest
-description: "Returns open interest for each market."
+description: "Returns open interest for each market"
+full: true
 _openapi:
   method: GET
 ---
-
-import { SiteName } from '@/components/docs/SiteName'
-
-<Callout type="info">
-Totals mirror the cached <SiteName /> balances, so extremely new markets may take a sync or two to appear.
-</Callout>
-
-Call <code>{process.env.DATA_URL}/oi</code> to retrieve the notional value locked in each market. Without filters the endpoint returns every cached market; include a `market` CSV query to narrow the scope.
-
-This route is ideal for surfacing liquidity indicators alongside price feeds or for alerting systems that watch for sudden drops in interest.
-
-## Playground
 
 <APIPage
   document="data-api"

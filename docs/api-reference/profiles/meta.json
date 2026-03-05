@@ -1,9 +1,0 @@
-{
-  "title": "Profiles",
-  "description": "Profile endpoints for public wallet profile data and updates.",
-  "icon": "User",
-  "pages": [
-    "get-public-profile-by-wallet-address",
-    "post-profile"
-  ]
-}

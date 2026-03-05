@@ -1,26 +1,10 @@
 ---
 title: Get User Activity
-description: "Returns the cached user activity feed."
+description: "Returns the cached user activity feed"
+full: true
 _openapi:
   method: GET
 ---
-<Callout type="info">
-This endpoint currently emits trade rows. Other activity categories (`SPLIT`, `MERGE`, `REDEEM`, `REWARD`, `CONVERSION`) are not yet surfaced in this deployment.
-</Callout>
-
-<code>{process.env.DATA_URL}/activity</code> returns a cached ledger-style feed scoped to one wallet. Current rows include trade fields plus market and profile metadata when available (for example `title`, `eventSlug`, `name`, and avatar URLs).
-
-## Filtering
-
-- `user` is required and must be the wallet (proxy or EOA) you want to inspect.
-- `limit` controls page size (max `500`).
-- `offset` skips rows for pagination (max `10,000`).
-
-## Pagination and sorting
-
-Use `limit` and `offset` to page through large histories.
-
-## Playground
 
 <APIPage
   document="data-api"

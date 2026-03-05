@@ -1,14 +1,10 @@
 ---
 title: Get Total Markets A User Has Traded
-description: "Returns how many distinct markets a wallet has traded in."
+description: "Returns how many distinct markets a wallet has traded in"
+full: true
 _openapi:
   method: GET
 ---
-Use <code>{process.env.DATA_URL}/traded</code> when you only need a scalar representing how many distinct markets a wallet has touched. The response echoes the `user` plus a `traded` integer.
-
-Because the endpoint is cheap, it works well for profile badges ("traded in N markets") or gating features such as leaderboards.
-
-## Playground
 
 <APIPage
   document="data-api"

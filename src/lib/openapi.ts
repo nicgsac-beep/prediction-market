@@ -69,14 +69,12 @@ export const openapi = createOpenAPI({
     const [
       clobSchema,
       createMarketSchema,
-      communitySchema,
       dataApiSchema,
       priceReferenceSchema,
       relayerSchema,
     ] = await Promise.all([
       readSchema('./docs/api-reference/schemas/openapi-clob.json'),
       readSchema('./docs/api-reference/schemas/openapi-create-market.json'),
-      readSchema('./docs/api-reference/schemas/openapi-community.json'),
       readSchema('./docs/api-reference/schemas/openapi-data-api.json'),
       readSchema('./docs/api-reference/schemas/openapi-price-reference.json'),
       readSchema('./docs/api-reference/schemas/openapi-relayer.json'),
@@ -85,7 +83,6 @@ export const openapi = createOpenAPI({
     return {
       'clob': applyServerUrl(clobSchema, OPENAPI_SERVER_URLS.clob),
       'create-market': applyServerUrl(createMarketSchema, OPENAPI_SERVER_URLS.createMarket),
-      'community': applyServerUrl(communitySchema, OPENAPI_SERVER_URLS.community),
       'data-api': applyServerUrl(dataApiSchema, OPENAPI_SERVER_URLS.dataApi),
       'price-reference': applyServerUrl(priceReferenceSchema, OPENAPI_SERVER_URLS.priceReference),
       'relayer': applyServerUrl(relayerSchema, OPENAPI_SERVER_URLS.relayer),

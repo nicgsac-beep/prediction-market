@@ -1,33 +1,81 @@
 ---
 title: Authentication
-description: L1 and L2 authentication model, required headers, and auth playgrounds.
+description: How to authenticate requests to the CLOB API
 ---
 
-import { SiteName } from '@/components/docs/SiteName'
+The CLOB API uses two authentication levels: **L1 (wallet signature)** and **L2 (API credentials)**.
 
-<SiteName /> uses a two-tier authentication flow:
+## Public vs Authenticated
 
-- **L1 (wallet signature)** for creating or deriving API keys.
-- **L2 (API credentials)** for authenticated trading and account endpoints.
+<Cards>
+  <Card
+    title="Public (No Auth)"
+    description="Market discovery, order book snapshots, prices, spreads, and most analytics endpoints are public."
+  />
 
-<Callout type="info" title="Credential Console">
-  Use <a href="https://auth.kuest.com" target="_blank" rel="noreferrer">auth.kuest.com</a> to create, list, and revoke API keys without crafting raw requests.
+  <Card
+    title="Authenticated (CLOB)"
+    description="Trading and account-management endpoints require all L2 `KUEST_*` headers."
+  />
+</Cards>
+
+## Two-Level Authentication Model
+
+### L1 Authentication
+
+L1 uses an EIP-712 wallet signature to prove ownership of the Polygon address.
+
+Use L1 to:
+- create API credentials
+- derive existing API credentials
+- bootstrap authenticated trading sessions
+
+### L2 Authentication
+
+L2 uses API credentials (`apiKey`, `secret`, `passphrase`) generated from L1.
+Requests are authenticated with HMAC-SHA256 signatures.
+
+Use L2 to:
+- list and revoke API keys
+- place/cancel orders
+- call private account/trading routes
+
+<Callout type="info">
+  Even with L2 headers, order placement still requires the order payload to be signed client-side before submission.
 </Callout>
 
-## L1 authentication (wallet signature)
+## Getting API Credentials
 
-Creating credentials requires an EIP-712 signature produced by the Polygon wallet that owns the account.
+### Using SDKs
 
-### Required headers
+Use the official SDKs whenever possible:
+- [Clients & SDKs](/docs/api-reference/clients-sdks)
+- [Python SDK](https://github.com/kuestcom/py-clob-client)
+- [Rust SDK](https://github.com/kuestcom/rs-clob-client)
+
+### Using the REST API
+
+```bash
+POST {CLOB_URL}/auth/api-key
+GET  {CLOB_URL}/auth/derive-api-key
+```
+
+Required L1 headers:
 
 | Header | Description |
 | --- | --- |
-| `KUEST_ADDRESS` | Polygon address that owns the account. |
-| `KUEST_SIGNATURE` | EIP-712 signature over the auth payload. |
-| `KUEST_TIMESTAMP` | Unix timestamp in seconds at signing time. |
-| `KUEST_NONCE` | Monotonic nonce bound to the signature. |
+| `KUEST_ADDRESS` | Polygon signer address |
+| `KUEST_SIGNATURE` | EIP-712 signature over auth payload |
+| `KUEST_TIMESTAMP` | Current UNIX timestamp (seconds) |
+| `KUEST_NONCE` | Nonce (commonly `0`) |
 
-### Typed data schema
+Optional L1 header:
+
+| Header | Description |
+| --- | --- |
+| `KUEST_REFERRAL` | Referral identifier for attribution |
+
+EIP-712 payload shape:
 
 ```json
 {
@@ -47,94 +95,34 @@ Creating credentials requires an EIP-712 signature produced by the Polygon walle
   "message": {
     "address": "<signing address>",
     "timestamp": "<unix timestamp>",
-    "nonce": "<uint256 nonce>",
+    "nonce": "<nonce>",
     "message": "This message attests that I control the given wallet"
   }
 }
 ```
 
-## L2 authentication (API credentials)
+Credential response:
 
-After creating an API key, authenticated requests use L2 headers derived from `secret` and `passphrase`.
+```json
+{
+  "apiKey": "550e8400-e29b-41d4-a716-446655440000",
+  "secret": "<generated-secret>",
+  "passphrase": "<generated-passphrase>"
+}
+```
 
-### Required headers
+Store `secret` and `passphrase` securely. They are not recoverable later.
+
+## L2 Authentication Headers
+
+All authenticated trading/account routes require these 5 headers:
 
 | Header | Description |
 | --- | --- |
-| `KUEST_ADDRESS` | Polygon address that generated the key. |
-| `KUEST_SIGNATURE` | HMAC signature generated from the API secret. |
-| `KUEST_TIMESTAMP` | Unix timestamp in seconds for replay protection. |
-| `KUEST_API_KEY` | UUID v4 from `POST /auth/api-key`. |
-| `KUEST_PASSPHRASE` | 64-char hex passphrase paired with the key. |
+| `KUEST_ADDRESS` | Polygon signer address |
+| `KUEST_SIGNATURE` | HMAC signature for the request |
+| `KUEST_TIMESTAMP` | Current UNIX timestamp (seconds) |
+| `KUEST_API_KEY` | API key UUID |
+| `KUEST_PASSPHRASE` | Passphrase paired with the API key |
 
-### Storage guarantees
-
-- `secret` and `passphrase` are generated and returned once.
-- Store both securely; they cannot be recovered later.
-- Revoking a key invalidates the `apiKey` + `secret` + `passphrase` tuple immediately.
-
-## Which header to use?
-
-| Action | Required auth |
-| --- | --- |
-| `POST /auth/api-key` | L1 |
-| `GET /auth/derive-api-key` | L1 |
-| `GET /auth/api-keys` | L2 |
-| `DELETE /auth/derive-api-key` | L2 |
-| Order placement and cancellation | L2 |
-| Public market data and server time | None |
-
-## Endpoint notes
-
-### Create API key (`POST /auth/api-key`)
-
-- Uses L1 headers.
-- Optional header: `KUEST_REFERRAL` for referral attribution.
-- Response includes `apiKey`, `secret`, and `passphrase`.
-
-### Derive API key (`GET /auth/derive-api-key`)
-
-- Uses L1 headers.
-- Re-derives deterministic credentials from an existing address/nonce pair.
-- Returns `404` if the pair has no previously created key.
-
-### List API keys (`GET /auth/api-keys`)
-
-- Uses L2 headers.
-- Returns active keys for the authenticated address.
-- Revoked keys are excluded from the response.
-
-### Revoke API key (`DELETE /auth/derive-api-key`)
-
-- Uses L2 headers.
-- Invalidates the provided key immediately.
-
-### Community auth
-
-Community endpoints use nonce + signature verification:
-- `POST /auth/nonce`
-- `POST /auth/verify`
-
-## Playground
-
-### CLOB Auth
-
-<APIPage
-  document="clob"
-  operations={[
-    { path: '/auth/api-key', method: 'post' },
-    { path: '/auth/api-keys', method: 'get' },
-    { path: '/auth/derive-api-key', method: 'get' },
-    { path: '/auth/derive-api-key', method: 'delete' }
-  ]}
-/>
-
-### Community Auth
-
-<APIPage
-  document="community"
-  operations={[
-    { path: '/auth/nonce', method: 'post' },
-    { path: '/auth/verify', method: 'post' }
-  ]}
-/>
+For timestamp drift protection, sync with [Get Server Time](/docs/api-reference/data/get-server-time) before signing.
