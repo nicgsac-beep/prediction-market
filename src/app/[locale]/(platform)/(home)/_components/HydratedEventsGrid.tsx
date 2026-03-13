@@ -14,13 +14,14 @@ import { useEventMarketQuotes } from '@/app/[locale]/(platform)/event/[slug]/_ho
 import { buildMarketTargets } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventPriceHistory'
 import { useColumns } from '@/hooks/useColumns'
 import { useCurrentTimestamp } from '@/hooks/useCurrentTimestamp'
-import { filterHomeEvents } from '@/lib/home-events'
+import { filterHomeEvents, HOME_EVENTS_PAGE_SIZE } from '@/lib/home-events'
 import { resolveDisplayPrice } from '@/lib/market-chance'
 import { useUser } from '@/stores/useUser'
 
 interface HydratedEventsGridProps {
   filters: FilterState
   initialEvents: Event[]
+  initialCurrentTimestamp: number
   maxColumns?: number
   onClearFilters?: () => void
   routeMainTag: string
@@ -109,6 +110,7 @@ async function fetchEvents({
 export default function HydratedEventsGrid({
   filters,
   initialEvents = EMPTY_EVENTS,
+  initialCurrentTimestamp,
   maxColumns,
   onClearFilters,
   routeMainTag,
@@ -121,7 +123,10 @@ export default function HydratedEventsGrid({
   const user = useUser()
   const userCacheKey = user?.id ?? 'guest'
   const queryUserScope = filters.bookmarked ? userCacheKey : 'public'
-  const currentTimestamp = useCurrentTimestamp({ intervalMs: 60_000 })
+  const currentTimestamp = useCurrentTimestamp({
+    initialTimestamp: initialCurrentTimestamp,
+    intervalMs: 60_000,
+  })
   const [infiniteScrollError, setInfiniteScrollError] = useState<string | null>(null)
   const snapshotKey = [
     locale,
@@ -140,7 +145,7 @@ export default function HydratedEventsGrid({
   const [lastStableVisibleEvents, setLastStableVisibleEvents] = useState<Event[]>(
     () => peekHydratedEventsSnapshot(snapshotKey) ?? initialEvents,
   )
-  const PAGE_SIZE = 40
+  const PAGE_SIZE = HOME_EVENTS_PAGE_SIZE
   const isRouteInitialState = filters.tag === routeTag
     && filters.mainTag === routeMainTag
     && filters.search === ''
@@ -155,6 +160,7 @@ export default function HydratedEventsGrid({
   const {
     status,
     data,
+    dataUpdatedAt,
     isFetching,
     isFetchingNextPage,
     fetchNextPage,
@@ -194,6 +200,14 @@ export default function HydratedEventsGrid({
   const previousUserKeyRef = useRef(queryUserScope)
 
   useEffect(() => {
+    if (!shouldUseInitialData) {
+      return
+    }
+
+    void refetch()
+  }, [refetch, shouldUseInitialData])
+
+  useEffect(() => {
     if (!filters.bookmarked || previousUserKeyRef.current === queryUserScope) {
       return
     }
@@ -220,6 +234,8 @@ export default function HydratedEventsGrid({
   ])
 
   const allEvents = useMemo(() => (data ? data.pages.flat() : []), [data])
+  const hasFreshQueryData = !shouldUseInitialData || dataUpdatedAt > 0
+  const effectiveCurrentTimestamp = hasFreshQueryData ? currentTimestamp : initialCurrentTimestamp
 
   const visibleEvents = useMemo(() => {
     if (allEvents.length === 0) {
@@ -227,13 +243,13 @@ export default function HydratedEventsGrid({
     }
 
     return filterHomeEvents(allEvents, {
-      currentTimestamp,
+      currentTimestamp: effectiveCurrentTimestamp,
       hideSports: filters.hideSports,
       hideCrypto: filters.hideCrypto,
       hideEarnings: filters.hideEarnings,
       status: filters.status,
     })
-  }, [allEvents, currentTimestamp, filters.hideSports, filters.hideCrypto, filters.hideEarnings, filters.status])
+  }, [allEvents, effectiveCurrentTimestamp, filters.hideSports, filters.hideCrypto, filters.hideEarnings, filters.status])
 
   useEffect(() => {
     setLastStableVisibleEvents(touchHydratedEventsSnapshot(snapshotKey) ?? initialEvents)
@@ -384,7 +400,7 @@ export default function HydratedEventsGrid({
         events={eventsToRender}
         priceOverridesByMarket={priceOverridesByMarket}
         maxColumns={maxColumns}
-        isFetching={isFetching || visibleEvents.length === 0}
+        isFetching={(visibleEvents.length === 0) || (isFetching && hasFreshQueryData)}
         currentTimestamp={currentTimestamp}
       />
 
