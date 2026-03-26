@@ -67,6 +67,18 @@ function isMoreRecentEvent<T extends HomeVisibleEventCandidate>(candidate: T, cu
   return candidate.id > current.id
 }
 
+function isResolvedLike(event: any) {
+  if (event.status === 'resolved') {
+    return true
+  }
+
+  if (!event.markets || event.markets.length === 0) {
+    return false
+  }
+
+  return event.markets.every((market: any) => market.is_resolved)
+}
+
 export function isHomeEventResolvedLike<T extends HomeVisibleEventCandidate>(event: T) {
   if (event.status === 'resolved') {
     return true
