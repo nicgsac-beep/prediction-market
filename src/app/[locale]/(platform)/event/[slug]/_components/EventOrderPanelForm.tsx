@@ -84,6 +84,7 @@ interface EventOrderPanelFormProps {
   primaryOutcomeIndex?: number | null
   oddsFormat?: OddsFormat
   outcomeButtonStyleVariant?: 'default' | 'sports3d'
+  outcomeLabelOverrides?: Partial<Record<number, string>>
   optimisticallyClaimedConditionIds?: Record<string, true>
 }
 
@@ -161,6 +162,7 @@ export default function EventOrderPanelForm({
   primaryOutcomeIndex = null,
   oddsFormat = 'price',
   outcomeButtonStyleVariant = 'default',
+  outcomeLabelOverrides = {},
   optimisticallyClaimedConditionIds = {},
 }: EventOrderPanelFormProps) {
   const { open } = useAppKit()
@@ -258,6 +260,22 @@ export default function EventOrderPanelForm({
   const isNegRiskMarket = typeof activeMarket?.neg_risk === 'boolean'
     ? activeMarket.neg_risk
     : Boolean(event.enable_neg_risk || event.neg_risk)
+
+  function resolveDisplayOutcomeLabel(
+    outcomeIndex: number | null | undefined,
+    outcomeText: string | null | undefined,
+    fallbackLabel: string,
+  ) {
+    const override = outcomeIndex == null
+      ? ''
+      : (outcomeLabelOverrides[outcomeIndex]?.trim() ?? '')
+    if (override) {
+      return override
+    }
+
+    const normalized = outcomeText ? normalizeOutcomeLabel(outcomeText) : ''
+    return normalized || outcomeText || fallbackLabel
+  }
   const isResolvedMarket = Boolean(activeMarket?.is_resolved || activeMarket?.condition?.resolved)
   const isTweetMarketEvent = useMemo(
     () => isTweetMarketsEvent(event),
@@ -308,25 +326,34 @@ export default function EventOrderPanelForm({
   const resolvedOutcomeIndex = inferredTweetResolvedOutcomeIndex ?? resolvedDisplay.resolvedOutcomeIndex
   const resolvedOutcomeLabel = useMemo(() => {
     if (inferredTweetResolvedOutcomeIndex != null) {
-      return inferredTweetResolvedOutcomeIndex === OUTCOME_INDEX.YES ? t('Yes') : t('No')
+      return resolveDisplayOutcomeLabel(
+        inferredTweetResolvedOutcomeIndex,
+        null,
+        inferredTweetResolvedOutcomeIndex === OUTCOME_INDEX.YES ? t('Yes') : t('No'),
+      )
     }
 
     if (resolvedDisplay.outcomeLabel) {
-      return normalizeOutcomeLabel(resolvedDisplay.outcomeLabel) || resolvedDisplay.outcomeLabel
+      return resolveDisplayOutcomeLabel(
+        resolvedOutcomeIndex,
+        resolvedDisplay.outcomeLabel,
+        resolvedDisplay.outcomeLabel,
+      )
     }
 
     if (resolvedOutcomeIndex === OUTCOME_INDEX.YES) {
-      return t('Yes')
+      return resolveDisplayOutcomeLabel(OUTCOME_INDEX.YES, null, t('Yes'))
     }
 
     if (resolvedOutcomeIndex === OUTCOME_INDEX.NO) {
-      return t('No')
+      return resolveDisplayOutcomeLabel(OUTCOME_INDEX.NO, null, t('No'))
     }
 
     return null
   }, [
     inferredTweetResolvedOutcomeIndex,
     normalizeOutcomeLabel,
+    outcomeLabelOverrides,
     resolvedDisplay.outcomeLabel,
     resolvedOutcomeIndex,
     t,
@@ -374,12 +401,8 @@ export default function EventOrderPanelForm({
     outcome => outcome.outcome_index === OUTCOME_INDEX.NO,
   )?.outcome_text
   ?? activeMarket?.outcomes.find(outcome => outcome.outcome_index === OUTCOME_INDEX.NO)?.outcome_text
-  const resolvedYesOutcomeLabel = (resolvedYesOutcomeText ? normalizeOutcomeLabel(resolvedYesOutcomeText) : '')
-    || resolvedYesOutcomeText
-    || t('Yes')
-  const resolvedNoOutcomeLabel = (resolvedNoOutcomeText ? normalizeOutcomeLabel(resolvedNoOutcomeText) : '')
-    || resolvedNoOutcomeText
-    || t('No')
+  const resolvedYesOutcomeLabel = resolveDisplayOutcomeLabel(OUTCOME_INDEX.YES, resolvedYesOutcomeText, t('Yes'))
+  const resolvedNoOutcomeLabel = resolveDisplayOutcomeLabel(OUTCOME_INDEX.NO, resolvedNoOutcomeText, t('No'))
   const orderDomain = useMemo(() => getExchangeEip712Domain(isNegRiskEnabled), [isNegRiskEnabled])
   const [showLimitMinimumWarning, setShowLimitMinimumWarning] = useState(false)
   const { positionsQuery, aggregatedPositionShares } = useEventOrderPanelPositions({
@@ -504,12 +527,13 @@ export default function EventOrderPanelForm({
   const selectedShares = state.side === ORDER_SIDE.SELL
     ? (isLimitOrder ? selectedTokenShares : selectedPositionShares)
     : selectedTokenShares
-  const selectedShareLabel = normalizeOutcomeLabel(activeOutcome?.outcome_text)
-    ?? (outcomeIndex === OUTCOME_INDEX.NO
-      ? t('No')
-      : outcomeIndex === OUTCOME_INDEX.YES
-        ? t('Yes')
-        : undefined)
+  const selectedShareLabel = outcomeIndex === undefined
+    ? undefined
+    : resolveDisplayOutcomeLabel(
+        outcomeIndex,
+        activeOutcome?.outcome_text,
+        outcomeIndex === OUTCOME_INDEX.NO ? t('No') : t('Yes'),
+      )
   const claimablePositionsForMarket = useMemo(() => {
     if (!isResolvedMarket || !activeMarket?.condition_id) {
       return []
@@ -582,10 +606,13 @@ export default function EventOrderPanelForm({
     && claimIndexSets.length > 0
     && !hasSubmittedClaimForMarket
   const claimOutcomeLabel = useMemo(() => {
-    const positionOutcomeText = claimablePositionsForMarket.find(position => position.outcome_text)?.outcome_text
-    const normalizedOutcome = positionOutcomeText ? normalizeOutcomeLabel(positionOutcomeText) : ''
-    return normalizedOutcome || positionOutcomeText || resolvedOutcomeLabel
-  }, [claimablePositionsForMarket, normalizeOutcomeLabel, resolvedOutcomeLabel])
+    const position = claimablePositionsForMarket.find(candidate => candidate.outcome_text || candidate.outcome_index != null)
+    return resolveDisplayOutcomeLabel(
+      typeof position?.outcome_index === 'number' ? position.outcome_index : resolvedOutcomeIndex,
+      position?.outcome_text,
+      resolvedOutcomeLabel ?? '',
+    )
+  }, [claimablePositionsForMarket, normalizeOutcomeLabel, outcomeLabelOverrides, resolvedOutcomeIndex, resolvedOutcomeLabel])
   const yesPositionLabel = useMemo(
     () =>
       formatSharesLabel(yesPositionShares, {
@@ -1051,7 +1078,11 @@ export default function EventOrderPanelForm({
       : 0
     const submittedSellAmountValue = submittedSide === ORDER_SIDE.SELL ? sellAmountValue : 0
     const submittedAvgSellPriceLabel = avgSellPriceLabel
-    const submittedOutcomeText = normalizeOutcomeLabel(activeOutcome.outcome_text) ?? activeOutcome.outcome_text
+    const submittedOutcomeText = resolveDisplayOutcomeLabel(
+      activeOutcome.outcome_index,
+      activeOutcome.outcome_text,
+      activeOutcome.outcome_text,
+    )
     const submittedEventTitle = event.title
     const submittedMarketImage = activeMarket.icon_url
     const submittedMarketTitle = activeMarket.short_title || activeMarket.title
@@ -1538,7 +1569,11 @@ export default function EventOrderPanelForm({
                 <EventOrderPanelOutcomeButton
                   variant="yes"
                   price={primaryPrice}
-                  label={normalizeOutcomeLabel(primaryOutcome?.outcome_text) ?? t('Yes')}
+                  label={resolveDisplayOutcomeLabel(
+                    normalizedPrimaryOutcomeIndex,
+                    primaryOutcome?.outcome_text,
+                    t('Yes'),
+                  )}
                   isSelected={activeOutcome?.outcome_index === normalizedPrimaryOutcomeIndex}
                   oddsFormat={oddsFormat}
                   styleVariant={outcomeButtonStyleVariant}
@@ -1556,7 +1591,11 @@ export default function EventOrderPanelForm({
                 <EventOrderPanelOutcomeButton
                   variant="no"
                   price={secondaryPrice}
-                  label={normalizeOutcomeLabel(secondaryOutcome?.outcome_text) ?? t('No')}
+                  label={resolveDisplayOutcomeLabel(
+                    normalizedSecondaryOutcomeIndex,
+                    secondaryOutcome?.outcome_text,
+                    t('No'),
+                  )}
                   isSelected={activeOutcome?.outcome_index === normalizedSecondaryOutcomeIndex}
                   oddsFormat={oddsFormat}
                   styleVariant={outcomeButtonStyleVariant}

@@ -68,7 +68,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import { useRouter } from '@/i18n/navigation'
-import { ensureReadableTextColorOnDark } from '@/lib/color-contrast'
 import { MICRO_UNIT, ORDER_SIDE, ORDER_TYPE, OUTCOME_INDEX } from '@/lib/constants'
 import { fetchUserPositionsForMarket } from '@/lib/data-api/user'
 import {
@@ -521,6 +520,31 @@ export function resolveSelectedMarket(card: SportsGamesCard, selectedButtonKey: 
   return card.detailMarkets[0] ?? null
 }
 
+export function resolveOrderPanelOutcomeLabelOverrides(
+  card: SportsGamesCard,
+  market: Market | null | undefined,
+): Partial<Record<number, string>> {
+  if (!market) {
+    return {}
+  }
+
+  const labels: Partial<Record<number, string>> = {}
+  card.buttons.forEach((button) => {
+    if (button.conditionId !== market.condition_id) {
+      return
+    }
+
+    const label = button.label?.trim()
+    if (!label || labels[button.outcomeIndex]) {
+      return
+    }
+
+    labels[button.outcomeIndex] = label
+  })
+
+  return labels
+}
+
 function resolveActiveMarketType(card: SportsGamesCard, selectedButtonKey: string | null): SportsGamesMarketType {
   if (selectedButtonKey) {
     const selectedButton = card.buttons.find(button => button.key === selectedButtonKey)
@@ -800,13 +824,24 @@ function resolveTotalButtonLabel(button: SportsGamesButton, selectedOutcome: Out
   return line ? `${sideLabel} ${line}` : sideLabel
 }
 
-function resolveSelectedTradeLabel(button: SportsGamesButton | null, selectedOutcome: Outcome | null) {
+function resolveSelectedTradeLabel(
+  card: SportsGamesCard,
+  button: SportsGamesButton | null,
+  selectedOutcome: Outcome | null,
+) {
   if (!button) {
     return selectedOutcome?.outcome_text?.trim().toUpperCase() || 'YES'
   }
 
   if (button.marketType === 'total') {
     return resolveTotalButtonLabel(button, selectedOutcome)
+  }
+
+  if (button.marketType === 'moneyline' && (button.tone === 'team1' || button.tone === 'team2')) {
+    const teamName = resolveTeamByTone(card, button.tone)?.name?.trim()
+    if (teamName) {
+      return teamName
+    }
   }
 
   return button.label.trim().toUpperCase()
@@ -1942,11 +1977,11 @@ function resolveTradeHeaderTitle({
 
   const team1 = card.teams[0] ?? null
   const team2 = card.teams[1] ?? null
-  const team1Label = resolveTeamShortLabel(team1?.name, team1?.abbreviation)
-  const team2Label = resolveTeamShortLabel(team2?.name, team2?.abbreviation)
+  const fullMatchupTitle = card.title?.trim()
+    || [team1?.name?.trim(), team2?.name?.trim()].filter(Boolean).join(' vs ')
 
-  if (team1Label && team2Label) {
-    return `${team1Label} vs ${team2Label}`
+  if (fullMatchupTitle) {
+    return fullMatchupTitle
   }
 
   return selectedButton.label.trim().toUpperCase() || card.title
@@ -1975,11 +2010,10 @@ function resolveTradeHeaderBadgeAccent(button: SportsGamesButton) {
     && normalizedTeamColor
   ) {
     const rgbComponents = resolveHexToRgbComponents(normalizedTeamColor)
-    const readableTeamColor = ensureReadableTextColorOnDark(normalizedTeamColor)
     return {
-      className: '',
+      className: 'dark:mix-blend-plus-lighter',
       style: {
-        color: readableTeamColor ?? normalizedTeamColor,
+        color: normalizedTeamColor,
         backgroundColor: rgbComponents ? `rgb(${rgbComponents} / 0.10)` : undefined,
       } as CSSProperties,
     }
@@ -2206,7 +2240,7 @@ export function SportsOrderPanelMarketInfo({
   marketType: SportsGamesMarketType
 }) {
   const selectedMarket = resolveSelectedMarket(card, selectedButton.key)
-  const badgeLabel = resolveSelectedTradeLabel(selectedButton, selectedOutcome)
+  const badgeLabel = resolveSelectedTradeLabel(card, selectedButton, selectedOutcome)
   const headerTitle = resolveTradeHeaderTitle({
     card,
     selectedButton,
@@ -2678,8 +2712,8 @@ export function SportsGameDetailsPanel({
   }, [card.buttons, nextOutcome, selectedMarket])
 
   const tradeSelectionLabel = useMemo(
-    () => resolveSelectedTradeLabel(selectedButton, selectedOutcome),
-    [selectedButton, selectedOutcome],
+    () => resolveSelectedTradeLabel(card, selectedButton, selectedOutcome),
+    [card, selectedButton, selectedOutcome],
   )
 
   const switchTooltip = useMemo(() => {
@@ -4148,6 +4182,15 @@ export default function SportsGamesCenter({
       outcome: matchedOutcome,
     }
   }, [activeTradeContext, orderMarketConditionId, orderOutcomeIndex])
+  const orderPanelOutcomeLabelOverrides = useMemo(
+    () => activeTradeContext
+      ? resolveOrderPanelOutcomeLabelOverrides(
+          activeTradeHeaderContext?.card ?? activeTradeContext.card,
+          activeTradeHeaderContext?.market ?? activeTradeContext.market,
+        )
+      : {},
+    [activeTradeContext, activeTradeHeaderContext],
+  )
 
   useEffect(() => {
     if (!activeTradeContext) {
@@ -5204,6 +5247,7 @@ export default function SportsGamesCenter({
                     event={activeTradeContext.card.event}
                     oddsFormat={oddsFormat}
                     outcomeButtonStyleVariant="sports3d"
+                    outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
                     desktopMarketInfo={(
                       <SportsOrderPanelMarketInfo
                         card={activeTradeHeaderContext?.card ?? activeTradeContext.card}
@@ -5230,6 +5274,7 @@ export default function SportsGamesCenter({
           event={activeTradeContext.card.event}
           oddsFormat={oddsFormat}
           outcomeButtonStyleVariant="sports3d"
+          outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
           mobileMarketInfo={(
             <SportsOrderPanelMarketInfo
               card={activeTradeHeaderContext?.card ?? activeTradeContext.card}
