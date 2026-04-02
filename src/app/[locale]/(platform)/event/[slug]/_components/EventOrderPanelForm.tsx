@@ -1,5 +1,6 @@
 import type { InfiniteData } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import type { EventOrderPanelOutcomeSelectedAccent } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeButton'
 import type { PortfolioUserOpenOrder } from '@/app/[locale]/(platform)/portfolio/_types/PortfolioOpenOrdersTypes'
 import type { OddsFormat } from '@/lib/odds-format'
 import type { SafeTransactionRequestPayload } from '@/lib/safe/transactions'
@@ -85,6 +86,7 @@ interface EventOrderPanelFormProps {
   oddsFormat?: OddsFormat
   outcomeButtonStyleVariant?: 'default' | 'sports3d'
   outcomeLabelOverrides?: Partial<Record<number, string>>
+  outcomeAccentOverrides?: Partial<Record<number, EventOrderPanelOutcomeSelectedAccent>>
   optimisticallyClaimedConditionIds?: Record<string, true>
 }
 
@@ -163,6 +165,7 @@ export default function EventOrderPanelForm({
   oddsFormat = 'price',
   outcomeButtonStyleVariant = 'default',
   outcomeLabelOverrides = {},
+  outcomeAccentOverrides = {},
   optimisticallyClaimedConditionIds = {},
 }: EventOrderPanelFormProps) {
   const { open } = useAppKit()
@@ -678,6 +681,9 @@ export default function EventOrderPanelForm({
     return formatCurrency(1)
   }, [hasYesAndNoPosition, noPositionShares, resolvedOutcomeIndex, yesPositionShares])
   const claimTotalLabel = useMemo(() => formatCurrency(claimableShares), [claimableShares])
+  const selectedSubmitAccent = outcomeIndex === OUTCOME_INDEX.YES || outcomeIndex === OUTCOME_INDEX.NO
+    ? (outcomeAccentOverrides[outcomeIndex] ?? null)
+    : null
 
   const marketSellFill = useMemo(() => {
     if (state.side !== ORDER_SIDE.SELL || isLimitOrder) {
@@ -1577,6 +1583,7 @@ export default function EventOrderPanelForm({
                   isSelected={activeOutcome?.outcome_index === normalizedPrimaryOutcomeIndex}
                   oddsFormat={oddsFormat}
                   styleVariant={outcomeButtonStyleVariant}
+                  selectedAccent={outcomeAccentOverrides[normalizedPrimaryOutcomeIndex] ?? null}
                   onSelect={() => {
                     if (!activeMarket || !primaryOutcome) {
                       return
@@ -1599,6 +1606,7 @@ export default function EventOrderPanelForm({
                   isSelected={activeOutcome?.outcome_index === normalizedSecondaryOutcomeIndex}
                   oddsFormat={oddsFormat}
                   styleVariant={outcomeButtonStyleVariant}
+                  selectedAccent={outcomeAccentOverrides[normalizedSecondaryOutcomeIndex] ?? null}
                   onSelect={() => {
                     if (!activeMarket || !secondaryOutcome) {
                       return
@@ -1735,6 +1743,7 @@ export default function EventOrderPanelForm({
                 type={!isInteractiveWalletReady || shouldShowDepositCta ? 'button' : 'submit'}
                 isLoading={state.isLoading}
                 isDisabled={state.isLoading}
+                selectedAccent={selectedSubmitAccent}
                 onClick={(event) => {
                   if (!isInteractiveWalletReady) {
                     void open()

@@ -31,6 +31,7 @@ import {
   resolveButtonOverlayStyle,
   resolveButtonStyle,
   resolveDefaultConditionId,
+  resolveOrderPanelOutcomeAccentOverrides,
   resolveOrderPanelOutcomeLabelOverrides,
   resolveSelectedButton,
   resolveSelectedMarket,
@@ -2143,6 +2144,15 @@ export default function SportsEventCenter({
       : {},
     [activeCard, activeTradeContext, activeTradeHeaderContext],
   )
+  const orderPanelOutcomeAccentOverrides = useMemo(
+    () => activeTradeContext
+      ? resolveOrderPanelOutcomeAccentOverrides(
+          activeCard,
+          activeTradeHeaderContext?.market ?? activeTradeContext.market,
+        )
+      : {},
+    [activeCard, activeTradeContext, activeTradeHeaderContext],
+  )
   const pageAboutMarket = activeTradeHeaderContext?.market ?? activeTradeContext?.market ?? null
 
   const activeTradePrimaryOutcomeIndex = useMemo(() => {
@@ -3597,6 +3607,7 @@ export default function SportsEventCenter({
                     outcomeButtonStyleVariant="sports3d"
                     optimisticallyClaimedConditionIds={claimedConditionIds}
                     outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
+                    outcomeAccentOverrides={orderPanelOutcomeAccentOverrides}
                     desktopMarketInfo={(
                       <SportsOrderPanelMarketInfo
                         card={activeCard}
@@ -3632,6 +3643,7 @@ export default function SportsEventCenter({
           outcomeButtonStyleVariant="sports3d"
           optimisticallyClaimedConditionIds={claimedConditionIds}
           outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
+          outcomeAccentOverrides={orderPanelOutcomeAccentOverrides}
           mobileMarketInfo={(
             <SportsOrderPanelMarketInfo
               card={activeCard}

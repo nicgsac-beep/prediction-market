@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { EventOrderPanelOutcomeSelectedAccent } from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeButton'
 import type { OddsFormat } from '@/lib/odds-format'
 import type { Event, Market, Outcome } from '@/types'
 import { DialogTitle } from '@radix-ui/react-dialog'
@@ -27,6 +28,7 @@ interface EventMobileOrderPanelProps {
   oddsFormat?: OddsFormat
   outcomeButtonStyleVariant?: 'default' | 'sports3d'
   outcomeLabelOverrides?: Partial<Record<number, string>>
+  outcomeAccentOverrides?: Partial<Record<number, EventOrderPanelOutcomeSelectedAccent>>
   optimisticallyClaimedConditionIds?: Record<string, true>
 }
 
@@ -40,6 +42,7 @@ export default function EventOrderPanelMobile({
   oddsFormat = 'price',
   outcomeButtonStyleVariant = 'default',
   outcomeLabelOverrides = {},
+  outcomeAccentOverrides = {},
   optimisticallyClaimedConditionIds,
 }: EventMobileOrderPanelProps) {
   const t = useExtracted()
@@ -163,6 +166,7 @@ export default function EventOrderPanelMobile({
           oddsFormat={oddsFormat}
           outcomeButtonStyleVariant={outcomeButtonStyleVariant}
           outcomeLabelOverrides={outcomeLabelOverrides}
+          outcomeAccentOverrides={outcomeAccentOverrides}
           optimisticallyClaimedConditionIds={optimisticallyClaimedConditionIds}
         />
         <EventOrderPanelTermsDisclaimer />

@@ -7,6 +7,8 @@ import type {
   MouseEvent as ReactMouseEvent,
   MouseEvent as ReactMouseEventType,
 } from 'react'
+import type { EventOrderPanelOutcomeSelectedAccent }
+  from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelOutcomeButton'
 import type { SportsGamesButton, SportsGamesCard } from '@/app/[locale]/(platform)/sports/_utils/sports-games-data'
 import type { OddsFormat } from '@/lib/odds-format'
 import type { NormalizedBookLevel } from '@/lib/order-panel-utils'
@@ -543,6 +545,35 @@ export function resolveOrderPanelOutcomeLabelOverrides(
   })
 
   return labels
+}
+
+export function resolveOrderPanelOutcomeAccentOverrides(
+  card: SportsGamesCard,
+  market: Market | null | undefined,
+): Partial<Record<number, EventOrderPanelOutcomeSelectedAccent>> {
+  if (!market) {
+    return {}
+  }
+
+  const accents: Partial<Record<number, EventOrderPanelOutcomeSelectedAccent>> = {}
+  card.buttons.forEach((button) => {
+    if (
+      button.conditionId !== market.condition_id
+      || (button.outcomeIndex !== OUTCOME_INDEX.YES && button.outcomeIndex !== OUTCOME_INDEX.NO)
+      || (button.tone !== 'team1' && button.tone !== 'team2')
+      || accents[button.outcomeIndex]
+    ) {
+      return
+    }
+
+    accents[button.outcomeIndex] = {
+      buttonStyle: resolveButtonStyle(button.color, button.tone),
+      depthStyle: resolveButtonDepthStyle(button.color, button.tone),
+      overlayStyle: resolveButtonOverlayStyle(button.color, button.tone),
+    }
+  })
+
+  return accents
 }
 
 function resolveActiveMarketType(card: SportsGamesCard, selectedButtonKey: string | null): SportsGamesMarketType {
@@ -4191,6 +4222,15 @@ export default function SportsGamesCenter({
       : {},
     [activeTradeContext, activeTradeHeaderContext],
   )
+  const orderPanelOutcomeAccentOverrides = useMemo(
+    () => activeTradeContext
+      ? resolveOrderPanelOutcomeAccentOverrides(
+          activeTradeHeaderContext?.card ?? activeTradeContext.card,
+          activeTradeHeaderContext?.market ?? activeTradeContext.market,
+        )
+      : {},
+    [activeTradeContext, activeTradeHeaderContext],
+  )
 
   useEffect(() => {
     if (!activeTradeContext) {
@@ -5248,6 +5288,7 @@ export default function SportsGamesCenter({
                     oddsFormat={oddsFormat}
                     outcomeButtonStyleVariant="sports3d"
                     outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
+                    outcomeAccentOverrides={orderPanelOutcomeAccentOverrides}
                     desktopMarketInfo={(
                       <SportsOrderPanelMarketInfo
                         card={activeTradeHeaderContext?.card ?? activeTradeContext.card}
@@ -5275,6 +5316,7 @@ export default function SportsGamesCenter({
           oddsFormat={oddsFormat}
           outcomeButtonStyleVariant="sports3d"
           outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}
+          outcomeAccentOverrides={orderPanelOutcomeAccentOverrides}
           mobileMarketInfo={(
             <SportsOrderPanelMarketInfo
               card={activeTradeHeaderContext?.card ?? activeTradeContext.card}
