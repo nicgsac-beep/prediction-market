@@ -5332,6 +5332,7 @@ export default function SportsGamesCenter({
       {isMobile && activeTradeContext && (
         <EventOrderPanelMobile
           event={activeTradeContext.card.event}
+          showDefaultTrigger={false}
           oddsFormat={oddsFormat}
           outcomeButtonStyleVariant="sports3d"
           outcomeLabelOverrides={orderPanelOutcomeLabelOverrides}

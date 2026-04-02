@@ -3667,6 +3667,7 @@ export default function SportsEventCenter({
       {isMobile && activeTradeContext && (
         <EventOrderPanelMobile
           event={activeCard.event}
+          showDefaultTrigger={false}
           oddsFormat={oddsFormat}
           outcomeButtonStyleVariant="sports3d"
           optimisticallyClaimedConditionIds={claimedConditionIds}
