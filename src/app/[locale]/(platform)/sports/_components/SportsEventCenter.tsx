@@ -349,6 +349,19 @@ function resolveTeamShortLabel(team: SportsGamesCard['teams'][number] | null | u
   return initials || name.slice(0, 3).toUpperCase()
 }
 
+const FULL_COMPETITOR_NAME_HERO_LABEL_SPORT_SLUGS = new Set([
+  'boxing',
+  'mma',
+  'ufc',
+  'zuffa',
+])
+
+function shouldUseFullCompetitorHeroLabels(sportSlug: string | null | undefined) {
+  return FULL_COMPETITOR_NAME_HERO_LABEL_SPORT_SLUGS.has(
+    normalizeComparableToken(sportSlug),
+  )
+}
+
 function parseSportsScore(value: string | null | undefined) {
   const trimmed = value?.trim()
   if (!trimmed) {
@@ -2514,6 +2527,9 @@ export default function SportsEventCenter({
 
   const team1 = heroCard.teams[0] ?? null
   const team2 = heroCard.teams[1] ?? null
+  const useFullCompetitorHeroLabels = shouldUseFullCompetitorHeroLabels(heroCard.event.sports_sport_slug ?? sportSlug)
+  const heroTeam1Label = useFullCompetitorHeroLabels ? (team1?.name ?? '—') : (team1?.abbreviation ?? '—')
+  const heroTeam2Label = useFullCompetitorHeroLabels ? (team2?.name ?? '—') : (team2?.abbreviation ?? '—')
   const useCroppedHeroTeamLogo = shouldUseCroppedSportsTeamLogo(heroCard.event.sports_sport_slug ?? sportSlug)
   const shortTeam1Label = resolveTeamShortLabel(team1)
   const shortTeam2Label = resolveTeamShortLabel(team2)
@@ -3334,7 +3350,7 @@ export default function SportsEventCenter({
           )}
 
           <div className="mb-4 flex items-center justify-center gap-12 md:gap-14">
-            <div className="flex w-20 flex-col items-center gap-2">
+            <div className={cn('flex flex-col items-center gap-2', useFullCompetitorHeroLabels ? 'w-24 sm:w-28' : 'w-20')}>
               <div
                 className={cn(
                   'pointer-events-none flex items-center justify-center select-none',
@@ -3380,7 +3396,16 @@ export default function SportsEventCenter({
                       </div>
                     )}
               </div>
-              <span className="text-base font-semibold text-foreground uppercase">{team1?.abbreviation ?? '—'}</span>
+              <span
+                className={cn(
+                  'text-center font-semibold text-foreground',
+                  useFullCompetitorHeroLabels
+                    ? 'max-w-full text-xs/tight sm:text-sm'
+                    : 'text-base uppercase',
+                )}
+              >
+                {heroTeam1Label}
+              </span>
             </div>
 
             {showFinalScore || showLiveScore
@@ -3427,7 +3452,7 @@ export default function SportsEventCenter({
                   </div>
                 )}
 
-            <div className="flex w-20 flex-col items-center gap-2">
+            <div className={cn('flex flex-col items-center gap-2', useFullCompetitorHeroLabels ? 'w-24 sm:w-28' : 'w-20')}>
               <div
                 className={cn(
                   'pointer-events-none flex items-center justify-center select-none',
@@ -3473,7 +3498,16 @@ export default function SportsEventCenter({
                       </div>
                     )}
               </div>
-              <span className="text-base font-semibold text-foreground uppercase">{team2?.abbreviation ?? '—'}</span>
+              <span
+                className={cn(
+                  'text-center font-semibold text-foreground',
+                  useFullCompetitorHeroLabels
+                    ? 'max-w-full text-xs/tight sm:text-sm'
+                    : 'text-base uppercase',
+                )}
+              >
+                {heroTeam2Label}
+              </span>
             </div>
           </div>
 

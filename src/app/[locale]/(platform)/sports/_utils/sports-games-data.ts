@@ -1258,6 +1258,7 @@ function buildChildMoneylineButtons(
 
 function buildSpreadButtons(
   marketsByType: ReturnType<typeof groupMarketsByType>,
+  teams: SportsGamesTeam[],
   team1: SportsGamesTeam | null,
   team2: SportsGamesTeam | null,
   usedButtonKeys: Set<string>,
@@ -1551,6 +1552,7 @@ function buildButtons(markets: Market[], teams: SportsGamesTeam[]) {
   )
   const spreadButtons = buildSpreadButtons(
     marketsByType,
+    teams,
     team1,
     team2,
     usedButtonKeys,
