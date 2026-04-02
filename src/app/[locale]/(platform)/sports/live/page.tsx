@@ -35,7 +35,7 @@ export default async function SportsLivePage({ params }: { params: Promise<{ loc
         cards={cards}
         sportSlug="live"
         sportTitle="LIVE"
-        pageMode="live"
+        pageMode="liveAndSoon"
         categoryTitleBySlug={layoutData?.h1TitleBySlug ?? {}}
         vertical="sports"
       />

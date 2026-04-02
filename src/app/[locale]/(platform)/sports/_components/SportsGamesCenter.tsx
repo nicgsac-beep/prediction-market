@@ -103,10 +103,11 @@ interface SportsGamesCenterProps {
   cards: SportsGamesCard[]
   sportSlug: string
   sportTitle: string
-  pageMode?: 'games' | 'live'
+  pageMode?: 'games' | 'live' | 'liveAndSoon' | 'soon'
   categoryTitleBySlug?: Record<string, string>
   initialWeek?: number | null
   vertical?: SportsVertical
+  showHeading?: boolean
 }
 
 type DetailsTab = 'orderBook' | 'graph' | 'about'
@@ -162,6 +163,7 @@ const tradeFlowTextStrokeStyle = {
   `,
 } as const
 const GENERIC_SPORTS_CATEGORY_LABELS = new Set([
+  'esports',
   'sports',
   'games',
   'live',
@@ -1019,6 +1021,15 @@ function formatCategoryFromSlug(value: string) {
     .join(' ')
 }
 
+function resolveCategoryFromSportSlugs(card: SportsGamesCard) {
+  const categorySlug = card.event.sports_sport_slug?.trim() || card.event.sports_series_slug?.trim()
+  if (!categorySlug) {
+    return null
+  }
+
+  return formatCategoryFromSlug(categorySlug)
+}
+
 function resolveCategoryFromEventSlug(card: SportsGamesCard) {
   const eventSlug = card.event.sports_event_slug?.trim() || card.event.series_slug?.trim()
   if (!eventSlug) {
@@ -1065,29 +1076,38 @@ function resolveCardCategoryLabel(
   card: SportsGamesCard,
   categoryTitleBySlug: Record<string, string> = {},
 ) {
-  const normalizedSportSlug = card.event.sports_sport_slug?.trim().toLowerCase()
-  const mappedCategoryTitle = normalizedSportSlug
-    ? categoryTitleBySlug[normalizedSportSlug]
-    : null
-  if (
-    mappedCategoryTitle
-    && !isGenericSportsCategoryLabel(mappedCategoryTitle, normalizedSportSlug)
-  ) {
-    return mappedCategoryTitle
+  const categorySlugCandidates = [
+    card.event.sports_series_slug,
+    card.event.series_slug,
+    card.event.sports_sport_slug,
+  ]
+    .map(value => value?.trim().toLowerCase() ?? '')
+    .filter(Boolean)
+
+  for (const slug of categorySlugCandidates) {
+    const mappedCategoryTitle = categoryTitleBySlug[slug]
+    if (
+      mappedCategoryTitle
+      && !isGenericSportsCategoryLabel(mappedCategoryTitle, slug)
+    ) {
+      return mappedCategoryTitle
+    }
   }
 
-  const sportSlug = card.event.sports_sport_slug
+  const genericSlug = categorySlugCandidates[0] ?? card.event.sports_sport_slug
   const candidateTags = card.event.sports_tags
     ?.map(tag => tag?.trim() ?? '')
     .filter(Boolean)
-    .filter(tag => !isGenericSportsCategoryLabel(tag, sportSlug))
+    .filter(tag => !isGenericSportsCategoryLabel(tag, genericSlug))
     ?? []
 
   if (candidateTags.length > 0) {
     return [...candidateTags].sort((a, b) => b.length - a.length)[0]!
   }
 
-  return resolveCategoryFromEventSlug(card) ?? 'Other'
+  return resolveCategoryFromSportSlugs(card)
+    ?? resolveCategoryFromEventSlug(card)
+    ?? 'Other'
 }
 
 function resolveSwitchTooltip(market: Market | null, nextOutcome: Outcome | null) {
@@ -3671,6 +3691,7 @@ export default function SportsGamesCenter({
   categoryTitleBySlug = {},
   initialWeek = null,
   vertical = 'sports',
+  showHeading = true,
 }: SportsGamesCenterProps) {
   const verticalConfig = getSportsVerticalConfig(vertical)
   const router = useRouter()
@@ -3698,6 +3719,9 @@ export default function SportsGamesCenter({
   const orderMarketConditionId = useOrder(state => state.market?.condition_id ?? null)
   const orderOutcomeIndex = useOrder(state => state.outcome?.outcome_index ?? null)
   const isLivePage = pageMode === 'live'
+  const isLiveAndSoonPage = pageMode === 'liveAndSoon'
+  const isSoonPage = pageMode === 'soon'
+  const isFeedPage = isLivePage || isLiveAndSoonPage || isSoonPage
   const normalizedCategoryTitleBySlug = useMemo(() => {
     return Object.fromEntries(
       Object.entries(categoryTitleBySlug).map(([slug, title]) => [slug.trim().toLowerCase(), title]),
@@ -3779,15 +3803,27 @@ export default function SportsGamesCenter({
   }, [showSpreadsAndTotals])
 
   const visibleCards = useMemo(() => {
-    if (isLivePage) {
+    if (isFeedPage) {
       return cards
     }
 
     return cards.filter(card => !isSportsGamesCardResolved(card))
-  }, [cards, isLivePage])
+  }, [cards, isFeedPage])
+
+  const pageCards = useMemo(() => {
+    if (isLivePage) {
+      return visibleCards.filter(card => isCardLiveNow(card, currentTimestampMs))
+    }
+
+    if (isSoonPage) {
+      return visibleCards.filter(card => isCardFuture(card, currentTimestampMs))
+    }
+
+    return visibleCards
+  }, [currentTimestampMs, isLivePage, isSoonPage, visibleCards])
 
   const weekOptions = useMemo(() => {
-    if (isLivePage) {
+    if (isFeedPage) {
       return []
     }
 
@@ -3798,14 +3834,14 @@ export default function SportsGamesCenter({
     ))
 
     return weeks.sort((a, b) => a - b)
-  }, [isLivePage, visibleCards])
+  }, [isFeedPage, visibleCards])
 
   const requestedWeekOption = useMemo(() => {
-    if (isLivePage || initialWeek == null || !Number.isFinite(initialWeek)) {
+    if (isFeedPage || initialWeek == null || !Number.isFinite(initialWeek)) {
       return null
     }
     return String(initialWeek)
-  }, [initialWeek, isLivePage])
+  }, [initialWeek, isFeedPage])
 
   const latestWeekOption = useMemo(
     () => (weekOptions.length > 0 ? String(weekOptions.at(-1)) : 'all'),
@@ -3818,7 +3854,7 @@ export default function SportsGamesCenter({
   )
 
   useEffect(() => {
-    if (isLivePage) {
+    if (isFeedPage) {
       setSelectedWeek('all')
       return
     }
@@ -3837,11 +3873,11 @@ export default function SportsGamesCenter({
         ? requestedWeekOption!
         : latestWeekOption)
     }
-  }, [isLivePage, latestWeekOption, requestedWeekOption, selectedWeek, weekOptions])
+  }, [isFeedPage, latestWeekOption, requestedWeekOption, selectedWeek, weekOptions])
 
   const weekFilteredCards = useMemo(() => {
-    if (isLivePage) {
-      return visibleCards
+    if (isFeedPage) {
+      return pageCards
     }
 
     if (selectedWeek === 'all') {
@@ -3850,7 +3886,7 @@ export default function SportsGamesCenter({
 
     const week = Number(selectedWeek)
     return visibleCards.filter(card => card.week === week)
-  }, [isLivePage, selectedWeek, visibleCards])
+  }, [isFeedPage, pageCards, selectedWeek, visibleCards])
 
   useEffect(() => {
     if (!isSearchOpen) {
@@ -3965,9 +4001,13 @@ export default function SportsGamesCenter({
 
   const emptyStateLabel = normalizedSearchQuery
     ? 'No games found for this search.'
-    : isLivePage
+    : isLiveAndSoonPage
       ? 'No live or upcoming games available.'
-      : 'No games available for this week.'
+      : isLivePage
+        ? 'No live games available.'
+        : isSoonPage
+          ? 'No upcoming games available.'
+          : 'No games available for this week.'
 
   useEffect(() => {
     if (openCardId && !filteredCards.some(card => card.id === openCardId)) {
@@ -4179,6 +4219,13 @@ export default function SportsGamesCenter({
           .sort((left, right) => left.label.localeCompare(right.label)),
       }))
   }, [dateLabelFormatter, resolveCardCategory, sortedFutureCards])
+  const hasFeedResults = isLiveAndSoonPage
+    ? liveCardsByCategory.length > 0 || startingSoonGroupsByDate.length > 0
+    : isLivePage
+      ? liveCardsByCategory.length > 0
+      : isSoonPage
+        ? startingSoonGroupsByDate.length > 0
+        : false
 
   const activeTradeContext = useMemo<SportsActiveTradeContext | null>(() => {
     if (filteredCards.length === 0) {
@@ -4336,7 +4383,7 @@ export default function SportsGamesCenter({
       }
     }
 
-    if (isMobile && isLivePage) {
+    if (isMobile && isFeedPage) {
       router.push(card.eventHref as Route)
       return
     }
@@ -5176,22 +5223,36 @@ export default function SportsGamesCenter({
           "
         >
           <div className="mb-4">
-            <div className={cn(
-              'mb-3 flex items-start justify-between gap-3',
-              !isLivePage && 'lg:mt-2',
-            )}
-            >
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            {showHeading
+              ? (
+                  <div className={cn(
+                    'mb-3 flex items-start justify-between gap-3',
+                    !isFeedPage && 'lg:mt-2',
+                  )}
+                  >
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+                      {sportTitle}
+                    </h1>
+
+                    <div className="flex items-center gap-2">
+                      {isFeedPage && renderSearchControl()}
+                      {renderSettingsMenu()}
+                    </div>
+                  </div>
+                )
+              : (
+                  <div className="mb-3 flex items-center justify-end gap-2">
+                    {isFeedPage && renderSearchControl()}
+                    {renderSettingsMenu()}
+                  </div>
+                )}
+            {!showHeading && !isFeedPage && (
+              <div className="sr-only">
                 {sportTitle}
-              </h1>
-
-              <div className="flex items-center gap-2">
-                {isLivePage && renderSearchControl()}
-                {renderSettingsMenu()}
               </div>
-            </div>
+            )}
 
-            {!isLivePage && (
+            {!isFeedPage && (
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-3">
                   <button
@@ -5222,19 +5283,19 @@ export default function SportsGamesCenter({
             )}
           </div>
 
-          {!isLivePage && groupedCards.length === 0 && (
+          {!isFeedPage && groupedCards.length === 0 && (
             <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
               {emptyStateLabel}
             </div>
           )}
 
-          {isLivePage && liveCardsByCategory.length === 0 && startingSoonGroupsByDate.length === 0 && (
+          {isFeedPage && !hasFeedResults && (
             <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
               {emptyStateLabel}
             </div>
           )}
 
-          {!isLivePage
+          {!isFeedPage
             ? (
                 <div className="space-y-5">
                   {groupedCards.map(group => (
@@ -5260,42 +5321,35 @@ export default function SportsGamesCenter({
                   ))}
                 </div>
               )
-            : (
-                <div className="space-y-6">
-                  {liveCardsByCategory.length > 0
-                    ? (
-                        <div className="space-y-5">
-                          {liveCardsByCategory.map(categoryGroup => (
-                            <div key={`live-${categoryGroup.key}`}>
-                              <div className="mb-2 flex items-end justify-between gap-3">
-                                <p className="text-base font-semibold text-foreground">
-                                  {categoryGroup.label}
-                                </p>
-                                {renderMarketColumnsHeader(`live-${categoryGroup.key}`, categoryGroup.cards)}
-                              </div>
+            : isLivePage
+              ? (
+                  <div className="space-y-5">
+                    {liveCardsByCategory.map(categoryGroup => (
+                      <div key={`live-${categoryGroup.key}`}>
+                        <div className="mb-2 flex items-end justify-between gap-3">
+                          <p className="text-base font-semibold text-foreground">
+                            {categoryGroup.label}
+                          </p>
+                          {renderMarketColumnsHeader(`live-${categoryGroup.key}`, categoryGroup.cards)}
+                        </div>
 
-                              <div className="space-y-2">
-                                {categoryGroup.cards.map(card => (
-                                  <div key={card.id}>
-                                    {renderCard(card, {
-                                      topBadgeMode: 'live',
-                                      categoryLabel: categoryGroup.label,
-                                    })}
-                                  </div>
-                                ))}
-                              </div>
+                        <div className="space-y-2">
+                          {categoryGroup.cards.map(card => (
+                            <div key={card.id}>
+                              {renderCard(card, {
+                                topBadgeMode: 'live',
+                                categoryLabel: categoryGroup.label,
+                              })}
                             </div>
                           ))}
                         </div>
-                      )
-                    : null}
-
-                  {startingSoonGroupsByDate.length > 0 && (
+                      </div>
+                    ))}
+                  </div>
+                )
+              : isSoonPage
+                ? (
                     <div className="space-y-3">
-                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                        Upcoming Games
-                      </h2>
-
                       {startingSoonGroupsByDate.map(dateGroup => (
                         <div key={`soon-${dateGroup.key}`} className="space-y-2.5">
                           <p className="text-lg font-semibold text-foreground">
@@ -5331,9 +5385,81 @@ export default function SportsGamesCenter({
                         </div>
                       ))}
                     </div>
+                  )
+                : (
+                    <div className="space-y-6">
+                      {liveCardsByCategory.length > 0
+                        ? (
+                            <div className="space-y-5">
+                              {liveCardsByCategory.map(categoryGroup => (
+                                <div key={`live-${categoryGroup.key}`}>
+                                  <div className="mb-2 flex items-end justify-between gap-3">
+                                    <p className="text-base font-semibold text-foreground">
+                                      {categoryGroup.label}
+                                    </p>
+                                    {renderMarketColumnsHeader(`live-${categoryGroup.key}`, categoryGroup.cards)}
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {categoryGroup.cards.map(card => (
+                                      <div key={card.id}>
+                                        {renderCard(card, {
+                                          topBadgeMode: 'live',
+                                          categoryLabel: categoryGroup.label,
+                                        })}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        : null}
+
+                      {startingSoonGroupsByDate.length > 0 && (
+                        <div className="space-y-3">
+                          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                            Upcoming Games
+                          </h2>
+
+                          {startingSoonGroupsByDate.map(dateGroup => (
+                            <div key={`soon-${dateGroup.key}`} className="space-y-2.5">
+                              <p className="text-lg font-semibold text-foreground">
+                                {dateGroup.label}
+                              </p>
+
+                              <div className="space-y-3">
+                                {dateGroup.categories.map(categoryGroup => (
+                                  <div key={`soon-${dateGroup.key}-${categoryGroup.key}`}>
+                                    <div className="mb-1.5 flex items-end justify-between gap-3">
+                                      <p className="text-base font-semibold text-foreground">
+                                        {categoryGroup.label}
+                                      </p>
+                                      {renderMarketColumnsHeader(
+                                        `soon-${dateGroup.key}-${categoryGroup.key}`,
+                                        categoryGroup.cards,
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      {categoryGroup.cards.map(card => (
+                                        <div key={card.id}>
+                                          {renderCard(card, {
+                                            topBadgeMode: 'time',
+                                            categoryLabel: categoryGroup.label,
+                                          })}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
         </section>
 
         <aside

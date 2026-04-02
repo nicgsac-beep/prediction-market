@@ -932,6 +932,7 @@ function eventResource(
       sportsSeriesSlug: event.sports?.sports_series_slug ?? null,
       sportsTags: normalizedSportsTags,
     }),
+    sports_series_slug: event.sports?.sports_series_slug ?? null,
     sports_section: resolveSportsSection({ tags: tagRecords }),
     sports_start_time: event.sports?.sports_start_time?.toISOString() ?? null,
     sports_event_week: toOptionalNumber(event.sports?.sports_event_week),

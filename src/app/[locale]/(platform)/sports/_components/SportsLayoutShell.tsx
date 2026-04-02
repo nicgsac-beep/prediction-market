@@ -116,6 +116,9 @@ function getSportsPathContext(params: {
 
   if (second === verticalConfig.futurePathSegment) {
     const canonicalSportSlug = resolveCanonicalSlugFromAlias(canonicalSlugByAliasKey, third)
+    const futureTitle = vertical === 'esports' && !canonicalSportSlug
+      ? 'Upcoming Esports Games'
+      : resolveMenuLabelByHref(menuEntries, verticalConfig.futurePath)
 
     return {
       isEventRoute: false,
@@ -125,7 +128,7 @@ function getSportsPathContext(params: {
       section: null,
       title: canonicalSportSlug
         ? h1TitleBySlug[canonicalSportSlug] ?? ''
-        : resolveMenuLabelByHref(menuEntries, verticalConfig.futurePath),
+        : futureTitle,
     }
   }
 
@@ -190,6 +193,7 @@ export default function SportsLayoutShell({
   const headerInsideGamesCenter = !context.isEventRoute
     && (
       context.mode === 'live'
+      || (vertical === 'esports' && context.mode === 'futures')
       || (context.mode === 'all' && context.section === 'games')
     )
   const showShellHeader = !headerInsideGamesCenter
