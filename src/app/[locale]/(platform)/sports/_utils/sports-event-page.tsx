@@ -11,6 +11,7 @@ import {
 } from '@/app/[locale]/(platform)/sports/_utils/sports-games-data'
 import EventStructuredData from '@/components/seo/EventStructuredData'
 import { redirect } from '@/i18n/navigation'
+import { loadMarketContextSettings } from '@/lib/ai/market-context-config'
 import { EventRepository } from '@/lib/db/queries/event'
 import { SportsMenuRepository } from '@/lib/db/queries/sports-menu'
 import { buildEventPageMetadata } from '@/lib/event-open-graph'
@@ -104,11 +105,13 @@ export async function renderSportsVerticalEventPage({
   const resolvedSportSlug = canonicalSportSlug
     || targetCard.event.sports_sport_slug
     || sport
-  const [{ data: layoutData }, runtimeTheme] = await Promise.all([
+  const [{ data: layoutData }, runtimeTheme, marketContextSettings] = await Promise.all([
     SportsMenuRepository.getLayoutData(vertical),
     loadRuntimeThemeState(),
+    loadMarketContextSettings(),
   ])
   const sportLabel = layoutData?.h1TitleBySlug[resolvedSportSlug] ?? resolvedSportSlug.toUpperCase()
+  const marketContextEnabled = marketContextSettings.enabled && Boolean(marketContextSettings.apiKey)
 
   return (
     <>
@@ -125,6 +128,7 @@ export async function renderSportsVerticalEventPage({
           sportSlug={resolvedSportSlug}
           sportLabel={sportLabel}
           initialMarketViewKey={resolveSportsEventMarketViewKey(canonicalEventSlug)}
+          marketContextEnabled={marketContextEnabled}
           vertical={vertical}
           key={`is-bookmarked-${targetCard.event.is_bookmarked}`}
         />

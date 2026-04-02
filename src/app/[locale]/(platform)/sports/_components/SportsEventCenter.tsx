@@ -24,6 +24,7 @@ import EventOrderPanelMobile from '@/app/[locale]/(platform)/event/[slug]/_compo
 import EventOrderPanelTermsDisclaimer
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelTermsDisclaimer'
 import EventTabs from '@/app/[locale]/(platform)/event/[slug]/_components/EventTabs'
+import SportsEventAboutPanel from '@/app/[locale]/(platform)/sports/_components/SportsEventAboutPanel'
 import {
   groupButtonsByMarketType,
   resolveButtonDepthStyle,
@@ -74,6 +75,7 @@ interface SportsEventCenterProps {
   card: SportsGamesCard
   marketViewCards?: SportsGamesCardMarketView[]
   relatedCards?: SportsGamesCard[]
+  marketContextEnabled?: boolean
   sportSlug: string
   sportLabel: string
   initialMarketSlug?: string | null
@@ -941,6 +943,7 @@ export default function SportsEventCenter({
   card,
   marketViewCards = [],
   relatedCards = [],
+  marketContextEnabled = false,
   sportSlug,
   sportLabel,
   initialMarketSlug = null,
@@ -2130,6 +2133,7 @@ export default function SportsEventCenter({
       outcome: matchedOutcome,
     }
   }, [activeTradeContext, activeCard.buttons, orderMarketConditionId, orderOutcomeIndex])
+  const pageAboutMarket = activeTradeHeaderContext?.market ?? activeTradeContext?.market ?? null
 
   const activeTradePrimaryOutcomeIndex = useMemo(() => {
     if (!activeTradeContext || activeTradeContext.button.marketType !== 'spread') {
@@ -2768,7 +2772,9 @@ export default function SportsEventCenter({
               allowedConditionIds={new Set(singleConditionId ? [singleConditionId] : entry.markets.map(market => market.condition_id))}
               showAboutTab
               aboutEvent={activeCard.event}
+              rulesEvent={heroCard.event}
               showRedeemInPositions
+              marketContextEnabled={marketContextEnabled}
               onOpenRedeemForCondition={handleOpenRedeemForCondition}
               oddsFormat={oddsFormat}
               onChangeTab={tab => setTabByAuxiliaryConditionId(current => ({ ...current, [panelKey]: tab }))}
@@ -2908,7 +2914,9 @@ export default function SportsEventCenter({
             allowedConditionIds={new Set(entry.markets.map(market => market.condition_id))}
             showAboutTab
             aboutEvent={activeCard.event}
+            rulesEvent={heroCard.event}
             showRedeemInPositions
+            marketContextEnabled={marketContextEnabled}
             onOpenRedeemForCondition={handleOpenRedeemForCondition}
             oddsFormat={oddsFormat}
             onChangeTab={tab => setTabByAuxiliaryConditionId(current => ({ ...current, [panelKey]: tab }))}
@@ -3234,6 +3242,8 @@ export default function SportsEventCenter({
                         allowedConditionIds={sectionConditionIds}
                         showAboutTab
                         aboutEvent={activeCard.event}
+                        rulesEvent={heroCard.event}
+                        marketContextEnabled={marketContextEnabled}
                         oddsFormat={oddsFormat}
                         onChangeTab={tab => setTabBySection(current => ({ ...current, [section.key]: tab }))}
                         onSelectButton={(buttonKey, options) => {
@@ -3546,8 +3556,15 @@ export default function SportsEventCenter({
           {cs2EventTabs}
           {marketPanelsContent}
 
-          <div className="mt-8">
-            <EventTabs event={heroCard.event} user={user ?? null} initialTab="activity" />
+          <div className="mt-6 grid gap-6">
+            <SportsEventAboutPanel
+              event={activeCard.event}
+              rulesEvent={heroCard.event}
+              market={pageAboutMarket}
+              marketContextEnabled={marketContextEnabled}
+              mode="page"
+            />
+            <EventTabs event={heroCard.event} user={user ?? null} />
           </div>
         </section>
 

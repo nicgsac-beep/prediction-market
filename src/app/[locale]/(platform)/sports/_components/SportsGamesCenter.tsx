@@ -20,7 +20,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   EqualIcon,
-  ExternalLinkIcon,
   RadioIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -42,12 +41,10 @@ import EventOrderPanelForm from '@/app/[locale]/(platform)/event/[slug]/_compone
 import EventOrderPanelMobile from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelMobile'
 import EventOrderPanelTermsDisclaimer
   from '@/app/[locale]/(platform)/event/[slug]/_components/EventOrderPanelTermsDisclaimer'
-import EventRules from '@/app/[locale]/(platform)/event/[slug]/_components/EventRules'
-import ResolutionTimelinePanel from '@/app/[locale]/(platform)/event/[slug]/_components/ResolutionTimelinePanel'
 import { TIME_RANGES, useEventPriceHistory } from '@/app/[locale]/(platform)/event/[slug]/_hooks/useEventPriceHistory'
 import { loadStoredChartSettings, storeChartSettings } from '@/app/[locale]/(platform)/event/[slug]/_utils/chartSettingsStorage'
 import { fetchOrderBookSummaries } from '@/app/[locale]/(platform)/event/[slug]/_utils/EventOrderBookUtils'
-import { shouldDisplayResolutionTimeline } from '@/app/[locale]/(platform)/event/[slug]/_utils/resolution-timeline-builder'
+import SportsEventAboutPanel from '@/app/[locale]/(platform)/sports/_components/SportsEventAboutPanel'
 import SportsLivestreamFloatingPlayer
   from '@/app/[locale]/(platform)/sports/_components/SportsLivestreamFloatingPlayer'
 import {
@@ -69,7 +66,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { useSiteIdentity } from '@/hooks/useSiteIdentity'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import { useRouter } from '@/i18n/navigation'
 import { ensureReadableTextColorOnDark } from '@/lib/color-contrast'
@@ -97,7 +93,6 @@ import {
 } from '@/lib/sports-team-colors'
 import { shouldUseCroppedSportsTeamLogo } from '@/lib/sports-team-logo'
 import { getSportsVerticalConfig } from '@/lib/sports-vertical'
-import { buildUmaProposeUrl, buildUmaSettledUrl } from '@/lib/uma'
 import { cn } from '@/lib/utils'
 import { useOrder } from '@/stores/useOrder'
 import { useSportsLivestream } from '@/stores/useSportsLivestream'
@@ -2264,79 +2259,6 @@ export function SportsOrderPanelMarketInfo({
   )
 }
 
-function SportsEventAboutPanel({
-  event,
-  market,
-}: {
-  event: SportsGamesCard['event']
-  market: Market | null
-}) {
-  const t = useExtracted()
-  const siteIdentity = useSiteIdentity()
-  const aboutRulesEvent = useMemo(() => {
-    if (!market) {
-      return event
-    }
-
-    return {
-      ...event,
-      markets: [
-        market,
-        ...event.markets.filter(item => item.condition_id !== market.condition_id),
-      ],
-    }
-  }, [event, market])
-  const shouldShowResolution = useMemo(
-    () => Boolean(market && shouldDisplayResolutionTimeline(market)),
-    [market],
-  )
-  const resolutionDetailsUrl = useMemo(
-    () => market
-      ? (buildUmaSettledUrl(market.condition, siteIdentity.name) ?? buildUmaProposeUrl(market.condition, siteIdentity.name))
-      : null,
-    [market, siteIdentity.name],
-  )
-
-  return (
-    <div className="grid gap-3 pb-2">
-      <EventRules event={aboutRulesEvent} mode="inline" showEndDate />
-
-      {market && shouldShowResolution && (
-        <section className="grid gap-2">
-          <h4 className="text-base font-medium text-foreground">{t('Resolution')}</h4>
-          <div className={cn(
-            'grid gap-2',
-            resolutionDetailsUrl && 'sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4',
-          )}
-          >
-            <ResolutionTimelinePanel
-              market={market}
-              settledUrl={null}
-              showLink={false}
-              className="min-w-0"
-            />
-            {resolutionDetailsUrl && (
-              <a
-                href={resolutionDetailsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="
-                  inline-flex items-center gap-1.5 justify-self-start text-sm font-medium text-muted-foreground
-                  hover:underline
-                  sm:justify-self-end
-                "
-              >
-                <span>{t('View details')}</span>
-                <ExternalLinkIcon className="size-3.5" />
-              </a>
-            )}
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
-
 interface SportsGameDetailsPanelProps {
   card: SportsGamesCard
   activeDetailsTab: DetailsTab
@@ -2347,9 +2269,11 @@ interface SportsGameDetailsPanelProps {
   positionsTitle?: string
   showAboutTab?: boolean
   aboutEvent?: SportsGamesCard['event'] | null
+  rulesEvent?: SportsGamesCard['event'] | null
   showRedeemInPositions?: boolean
   onOpenRedeemForCondition?: ((conditionId: string) => void) | null
   oddsFormat?: OddsFormat
+  marketContextEnabled?: boolean
   onChangeTab: (tab: DetailsTab) => void
   onSelectButton: (
     buttonKey: string,
@@ -2367,9 +2291,11 @@ export function SportsGameDetailsPanel({
   positionsTitle,
   showAboutTab = false,
   aboutEvent = null,
+  rulesEvent = null,
   showRedeemInPositions = false,
   onOpenRedeemForCondition = null,
   oddsFormat = 'price',
+  marketContextEnabled = false,
   onChangeTab,
   onSelectButton,
 }: SportsGameDetailsPanelProps) {
@@ -3329,7 +3255,12 @@ export function SportsGameDetailsPanel({
           )}
 
           {resolvedActiveDetailsTab === 'about' && aboutEvent && (
-            <SportsEventAboutPanel event={aboutEvent} market={selectedMarket} />
+            <SportsEventAboutPanel
+              event={aboutEvent}
+              rulesEvent={rulesEvent}
+              market={selectedMarket}
+              marketContextEnabled={marketContextEnabled}
+            />
           )}
         </>
       )}
