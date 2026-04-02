@@ -43,12 +43,17 @@ export default function SportsEventAboutPanel({
     }
 
     const prioritizedMarket = sourceEvent.markets.find(item => item.condition_id === market.condition_id)
+    const marketRules = market.market_rules?.trim() || prioritizedMarket?.market_rules?.trim() || sourceEvent.rules
     if (!prioritizedMarket) {
-      return sourceEvent
+      return {
+        ...sourceEvent,
+        rules: marketRules || sourceEvent.rules,
+      }
     }
 
     return {
       ...sourceEvent,
+      rules: marketRules || sourceEvent.rules,
       markets: [
         prioritizedMarket,
         ...sourceEvent.markets.filter(item => item.condition_id !== prioritizedMarket.condition_id),
@@ -70,7 +75,7 @@ export default function SportsEventAboutPanel({
   if (!isInline) {
     return (
       <div className="grid gap-6">
-        {marketContextEnabled && <EventMarketContext event={event} />}
+        {marketContextEnabled && <EventMarketContext event={event} marketConditionId={market?.condition_id ?? null} />}
         <EventRules event={aboutRulesEvent} showEndDate />
 
         {market && shouldShowResolution && (
@@ -101,7 +106,7 @@ export default function SportsEventAboutPanel({
 
   return (
     <div className="grid gap-3 pb-2">
-      {marketContextEnabled && <EventMarketContext event={event} />}
+      {marketContextEnabled && <EventMarketContext event={event} marketConditionId={market?.condition_id ?? null} />}
       <EventRules event={aboutRulesEvent} mode="inline" showEndDate />
 
       {market && shouldShowResolution && (
