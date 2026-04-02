@@ -12,7 +12,7 @@ import type { SportsEventMarketViewKey } from '@/lib/sports-event-slugs'
 import type { SportsVertical } from '@/lib/sports-vertical'
 import type { UserPosition } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon } from 'lucide-react'
+import { CheckIcon, ChevronLeftIcon, ShareIcon } from 'lucide-react'
 import { useLocale } from 'next-intl'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
@@ -39,7 +39,6 @@ import {
   resolveStableSpreadPrimaryOutcomeIndex,
   SportsGameDetailsPanel,
   SportsGameGraph,
-
   SportsOrderPanelMarketInfo,
 } from '@/app/[locale]/(platform)/sports/_components/SportsGamesCenter'
 import SportsLivestreamFloatingPlayer
@@ -71,7 +70,7 @@ import { useUser } from '@/stores/useUser'
 
 type DetailsTab = 'orderBook' | 'graph' | 'about'
 type EventSectionKey = Extract<SportsGamesMarketType, 'moneyline' | 'spread' | 'total' | 'btts'>
-type Cs2LayoutTabKey = 'series' | `map-${number}`
+type EsportsLayoutTabKey = 'series' | `segment-${number}`
 
 interface SportsEventCenterProps {
   card: SportsGamesCard
@@ -96,17 +95,8 @@ interface AuxiliaryMarketPanel {
   markets: SportsGamesCard['detailMarkets']
   buttons: SportsGamesButton[]
   volume: number
-  kind: 'default' | 'cs2MapWinner'
   mapNumber: number | null
-  mapNumbers?: number[]
-  buttonsByMapNumber?: Map<number, SportsGamesButton[]>
 }
-
-const CS2_MAP_WINNER_PANEL_KEY = '__cs2_map_winner__'
-const CS2_MAP_SPECIFIC_MARKET_TYPES = new Set([
-  'cs2_odd_even_total_kills',
-  'cs2_odd_even_total_rounds',
-])
 
 const SECTION_ORDER: Array<{ key: EventSectionKey, label: string }> = [
   { key: 'moneyline', label: 'Moneyline' },
@@ -161,62 +151,74 @@ function resolveMoneylineButtonGridClass(buttonCount: number) {
   return 'grid-cols-3'
 }
 
-function parseCs2MapNumber(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
+function parseEsportsSegmentDescriptor(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
   if (!market) {
     return null
   }
 
-  const slugMatch = market.slug?.match(/(?:^|-)game(\d+)(?:-|$)/i)
-  if (slugMatch?.[1]) {
-    const parsed = Number.parseInt(slugMatch[1], 10)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  const mapMatch = [
+  const segmentMatch = [
     market.sports_group_item_title,
     market.short_title,
     market.title,
+    market.slug,
   ]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' ')
-    .match(/\bmap\s+(\d+)\b/i)
+    .match(/\b(map|game)\s*(\d+)\b/i)
 
-  if (!mapMatch?.[1]) {
+  if (!segmentMatch?.[1] || !segmentMatch[2]) {
     return null
   }
 
-  const parsed = Number.parseInt(mapMatch[1], 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function isCs2EventCard(card: SportsGamesCard) {
-  const sportSlug = card.event.sports_sport_slug?.trim().toLowerCase()
-  if (sportSlug === 'counter-strike') {
-    return true
+  const parsed = Number.parseInt(segmentMatch[2], 10)
+  if (!Number.isFinite(parsed)) {
+    return null
   }
 
-  if (card.event.slug.trim().toLowerCase().startsWith('cs2-')) {
-    return true
-  }
-
-  return card.detailMarkets.some((market) => {
-    const marketType = normalizeSportsMarketType(market.sports_market_type)
-    return marketType === 'child_moneyline' || marketType.startsWith('cs2_')
-  })
+  return {
+    kind: segmentMatch[1].toLowerCase() === 'map' ? 'map' : 'game',
+    number: parsed,
+  } as const
 }
 
-function isCs2ChildMoneylineMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
+function parseEsportsSegmentNumber(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
+  return parseEsportsSegmentDescriptor(market)?.number ?? null
+}
+
+function isSegmentedEsportsEventCard(card: SportsGamesCard, vertical: SportsVertical) {
+  return vertical === 'esports'
+    && card.detailMarkets.some(market => parseEsportsSegmentDescriptor(market) != null)
+}
+
+function resolveEsportsSegmentLabels(card: SportsGamesCard) {
+  const segmentKinds = new Set(
+    card.detailMarkets
+      .map(market => parseEsportsSegmentDescriptor(market)?.kind ?? null)
+      .filter((kind): kind is 'map' | 'game' => kind === 'map' || kind === 'game'),
+  )
+
+  if (segmentKinds.size === 1) {
+    const [kind] = Array.from(segmentKinds)
+    return kind === 'map'
+      ? { singular: 'Map', plural: 'Maps' }
+      : { singular: 'Game', plural: 'Games' }
+  }
+
+  return card.event.sports_sport_slug?.trim().toLowerCase() === 'counter-strike'
+    ? { singular: 'Map', plural: 'Maps' }
+    : { singular: 'Game', plural: 'Games' }
+}
+
+function isSegmentedEsportsChildMoneylineMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
   return normalizeSportsMarketType(market?.sports_market_type) === 'child_moneyline'
 }
 
-function isCs2MapSpecificBinaryMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
-  return CS2_MAP_SPECIFIC_MARKET_TYPES.has(normalizeSportsMarketType(market?.sports_market_type))
+function isSegmentedEsportsBinaryMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
+  return parseEsportsSegmentNumber(market) != null && !isSegmentedEsportsChildMoneylineMarket(market)
 }
 
-function isCs2PrimaryMoneylineMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
-  if (!market || isCs2ChildMoneylineMarket(market)) {
+function isSegmentedEsportsPrimaryMoneylineMarket(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
+  if (!market || isSegmentedEsportsChildMoneylineMarket(market)) {
     return false
   }
 
@@ -237,20 +239,20 @@ function isCs2PrimaryMoneylineMarket(market: SportsGamesCard['detailMarkets'][nu
   return marketText.includes('match winner') || marketText.includes('moneyline')
 }
 
-function resolveCs2TabKey(mapNumber: number): Cs2LayoutTabKey {
-  return `map-${mapNumber}`
+function resolveEsportsSegmentTabKey(mapNumber: number): EsportsLayoutTabKey {
+  return `segment-${mapNumber}`
 }
 
-function parseCs2TabMapNumber(tabKey: Cs2LayoutTabKey) {
+function parseEsportsSegmentTabNumber(tabKey: EsportsLayoutTabKey) {
   if (tabKey === 'series') {
     return null
   }
 
-  const parsed = Number.parseInt(tabKey.slice(4), 10)
+  const parsed = Number.parseInt(tabKey.slice(8), 10)
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function resolveCs2AuxiliaryPanelTitle(markets: SportsGamesCard['detailMarkets']) {
+function resolveEsportsSegmentPanelTitle(markets: SportsGamesCard['detailMarkets']) {
   const primaryMarket = markets[0]
   if (!primaryMarket) {
     return 'Market'
@@ -261,13 +263,22 @@ function resolveCs2AuxiliaryPanelTitle(markets: SportsGamesCard['detailMarkets']
     || primaryMarket.title
 }
 
-function resolveCs2AuxiliaryPanelSortOrder(markets: SportsGamesCard['detailMarkets']) {
+function resolveEsportsSegmentPanelSortOrder(markets: SportsGamesCard['detailMarkets']) {
   const normalizedType = normalizeSportsMarketType(markets[0]?.sports_market_type)
-  if (normalizedType === 'cs2_odd_even_total_kills') {
+  if (normalizedType === 'child_moneyline') {
     return 0
   }
-  if (normalizedType === 'cs2_odd_even_total_rounds') {
+  if (normalizedType === 'spread' || normalizedType === 'map_handicap' || normalizedType.includes('handicap')) {
     return 1
+  }
+  if (normalizedType === 'total' || normalizedType === 'totals' || normalizedType.includes('total')) {
+    return 2
+  }
+  if (normalizedType.endsWith('odd_even_total_kills')) {
+    return 3
+  }
+  if (normalizedType.endsWith('odd_even_total_rounds')) {
+    return 4
   }
   return 99
 }
@@ -747,12 +758,12 @@ function resolveEventSectionKeyForButton(
   market: SportsGamesCard['detailMarkets'][number] | null | undefined,
 ): EventSectionKey | null {
   if (market) {
-    if (isCs2ChildMoneylineMarket(market) || isCs2MapSpecificBinaryMarket(market)) {
+    if (isSegmentedEsportsChildMoneylineMarket(market) || isSegmentedEsportsBinaryMarket(market)) {
       return null
     }
 
     const normalizedType = normalizeSportsMarketType(market.sports_market_type)
-    if (isCs2PrimaryMoneylineMarket(market) || normalizedType === 'moneyline') {
+    if (isSegmentedEsportsPrimaryMoneylineMarket(market) || normalizedType === 'moneyline') {
       return 'moneyline'
     }
 
@@ -1099,15 +1110,15 @@ export default function SportsEventCenter({
 
     return priceByKey
   }, [activeCard.buttons, buttonOrderBookSummaries, detailMarketByConditionId])
-  const cs2MapTabNumbers = useMemo(() => {
+  const { singular: segmentLabel, plural: segmentPluralLabel } = useMemo(
+    () => resolveEsportsSegmentLabels(activeCard),
+    [activeCard],
+  )
+  const esportsSegmentTabNumbers = useMemo(() => {
     const numbers = new Set<number>()
 
     activeCard.detailMarkets.forEach((market) => {
-      if (!isCs2MapSpecificBinaryMarket(market)) {
-        return
-      }
-
-      const mapNumber = parseCs2MapNumber(market)
+      const mapNumber = parseEsportsSegmentNumber(market)
       if (mapNumber != null) {
         numbers.add(mapNumber)
       }
@@ -1115,35 +1126,35 @@ export default function SportsEventCenter({
 
     return Array.from(numbers).sort((left, right) => left - right)
   }, [activeCard.detailMarkets])
-  const hasCs2SeparatedLayout = useMemo(
-    () => baseUsesSectionLayout && isCs2EventCard(activeCard) && cs2MapTabNumbers.length > 0,
-    [activeCard, baseUsesSectionLayout, cs2MapTabNumbers.length],
+  const hasEsportsSegmentedLayout = useMemo(
+    () => baseUsesSectionLayout && isSegmentedEsportsEventCard(activeCard, vertical) && esportsSegmentTabNumbers.length > 0,
+    [activeCard, baseUsesSectionLayout, esportsSegmentTabNumbers.length, vertical],
   )
-  const initialCs2TabKey = useMemo<Cs2LayoutTabKey>(() => {
-    if (!hasCs2SeparatedLayout || !initialMarketSlug) {
+  const initialEsportsSegmentTabKey = useMemo<EsportsLayoutTabKey>(() => {
+    if (!hasEsportsSegmentedLayout || !initialMarketSlug) {
       return 'series'
     }
 
     const matchedMarket = activeCard.detailMarkets.find(market => market.slug === initialMarketSlug) ?? null
-    if (!matchedMarket || !isCs2MapSpecificBinaryMarket(matchedMarket)) {
+    const mapNumber = parseEsportsSegmentNumber(matchedMarket)
+    if (mapNumber == null) {
       return 'series'
     }
 
-    const mapNumber = parseCs2MapNumber(matchedMarket)
-    return mapNumber != null && cs2MapTabNumbers.includes(mapNumber)
-      ? resolveCs2TabKey(mapNumber)
+    return esportsSegmentTabNumbers.includes(mapNumber)
+      ? resolveEsportsSegmentTabKey(mapNumber)
       : 'series'
-  }, [activeCard.detailMarkets, cs2MapTabNumbers, hasCs2SeparatedLayout, initialMarketSlug])
-  const [activeCs2TabKey, setActiveCs2TabKey] = useState<Cs2LayoutTabKey>(initialCs2TabKey)
-  const activeCs2MapNumber = useMemo(
-    () => parseCs2TabMapNumber(activeCs2TabKey),
-    [activeCs2TabKey],
+  }, [activeCard.detailMarkets, esportsSegmentTabNumbers, hasEsportsSegmentedLayout, initialMarketSlug])
+  const [activeEsportsSegmentTabKey, setActiveEsportsSegmentTabKey] = useState<EsportsLayoutTabKey>(initialEsportsSegmentTabKey)
+  const activeEsportsSegmentNumber = useMemo(
+    () => parseEsportsSegmentTabNumber(activeEsportsSegmentTabKey),
+    [activeEsportsSegmentTabKey],
   )
-  const usesSectionLayout = baseUsesSectionLayout && (!hasCs2SeparatedLayout || activeCs2TabKey === 'series')
+  const usesSectionLayout = baseUsesSectionLayout && (!hasEsportsSegmentedLayout || activeEsportsSegmentTabKey === 'series')
 
   useEffect(() => {
-    setActiveCs2TabKey(initialCs2TabKey)
-  }, [initialCs2TabKey])
+    setActiveEsportsSegmentTabKey(initialEsportsSegmentTabKey)
+  }, [initialEsportsSegmentTabKey])
 
   const { data: userPositions } = useQuery<UserPosition[]>({
     queryKey: ['sports-event-user-positions', ownerAddress, activeCard.id],
@@ -1194,7 +1205,7 @@ export default function SportsEventCenter({
   }, [oddsFormat])
 
   const groupedButtons = useMemo(() => {
-    if (!hasCs2SeparatedLayout) {
+    if (!hasEsportsSegmentedLayout) {
       return groupButtonsByMarketType(activeCard.buttons)
     }
 
@@ -1221,7 +1232,7 @@ export default function SportsEventCenter({
     })
 
     return grouped
-  }, [activeCard.buttons, detailMarketByConditionId, hasCs2SeparatedLayout])
+  }, [activeCard.buttons, detailMarketByConditionId, hasEsportsSegmentedLayout])
   const buttonByConditionAndOutcome = useMemo(() => {
     const map = new Map<string, SportsGamesButton>()
     activeCard.buttons.forEach((button) => {
@@ -1514,18 +1525,14 @@ export default function SportsEventCenter({
         return
       }
 
-      const isCs2MapSpecificMarket = hasCs2SeparatedLayout && isCs2MapSpecificBinaryMarket(market)
+      const isSegmentedEsportsMarket = hasEsportsSegmentedLayout && parseEsportsSegmentNumber(market) != null
 
-      if (baseUsesSectionLayout && buttons[0]?.marketType !== 'binary' && !isCs2MapSpecificMarket) {
+      if (baseUsesSectionLayout && buttons[0]?.marketType !== 'binary' && !isSegmentedEsportsMarket) {
         return
       }
 
-      if (hasCs2SeparatedLayout && isCs2ChildMoneylineMarket(market)) {
-        return
-      }
-
-      const mapNumber = hasCs2SeparatedLayout && isCs2MapSpecificBinaryMarket(market)
-        ? parseCs2MapNumber(market)
+      const mapNumber = hasEsportsSegmentedLayout && isSegmentedEsportsMarket
+        ? parseEsportsSegmentNumber(market)
         : null
       const panelKey = mapNumber != null
         ? `${activeCard.id}:${normalizeSportsMarketType(market.sports_market_type)}:map-${mapNumber}`
@@ -1544,7 +1551,6 @@ export default function SportsEventCenter({
         markets: [market],
         buttons: [...buttons],
         volume: Number(market.volume ?? 0),
-        kind: 'default',
         mapNumber,
       })
     })
@@ -1553,7 +1559,7 @@ export default function SportsEventCenter({
       .map(panel => ({
         ...panel,
         title: panel.mapNumber != null
-          ? resolveCs2AuxiliaryPanelTitle(panel.markets)
+          ? resolveEsportsSegmentPanelTitle(panel.markets)
           : resolveSportsAuxiliaryMarketTitle(panel.markets),
         buttons: sortAuxiliaryButtons(dedupeAuxiliaryButtons(panel.buttons)),
       }))
@@ -1563,10 +1569,10 @@ export default function SportsEventCenter({
           return mapComparison
         }
 
-        const cs2TypeComparison = resolveCs2AuxiliaryPanelSortOrder(left.markets)
-          - resolveCs2AuxiliaryPanelSortOrder(right.markets)
-        if (cs2TypeComparison !== 0) {
-          return cs2TypeComparison
+        const segmentTypeComparison = resolveEsportsSegmentPanelSortOrder(left.markets)
+          - resolveEsportsSegmentPanelSortOrder(right.markets)
+        if (segmentTypeComparison !== 0) {
+          return segmentTypeComparison
         }
 
         const timestampComparison = resolveAuxiliaryPanelCreatedAt(left.markets) - resolveAuxiliaryPanelCreatedAt(right.markets)
@@ -1576,84 +1582,23 @@ export default function SportsEventCenter({
 
         return left.title.localeCompare(right.title)
       })
-  }, [activeCard.buttons, activeCard.detailMarkets, activeCard.id, baseUsesSectionLayout, hasCs2SeparatedLayout])
-  const cs2MapWinnerPanel = useMemo<AuxiliaryMarketPanel | null>(() => {
-    if (!hasCs2SeparatedLayout) {
-      return null
-    }
-
-    const buttonsByConditionId = new Map<string, SportsGamesButton[]>()
-
-    activeCard.buttons.forEach((button) => {
-      const currentButtons = buttonsByConditionId.get(button.conditionId) ?? []
-      currentButtons.push(button)
-      buttonsByConditionId.set(button.conditionId, currentButtons)
-    })
-
-    const buttonsByMapNumber = new Map<number, SportsGamesButton[]>()
-    const markets: SportsGamesCard['detailMarkets'] = []
-    let volume = 0
-
-    activeCard.detailMarkets
-      .filter(isCs2ChildMoneylineMarket)
-      .map((market) => {
-        const mapNumber = parseCs2MapNumber(market)
-        return mapNumber == null ? null : { market, mapNumber }
-      })
-      .filter((entry): entry is { market: SportsGamesCard['detailMarkets'][number], mapNumber: number } => Boolean(entry))
-      .sort((left, right) => left.mapNumber - right.mapNumber)
-      .forEach(({ market, mapNumber }) => {
-        const buttons = sortSectionButtons(
-          'moneyline',
-          buttonsByConditionId.get(market.condition_id) ?? [],
-        )
-
-        if (buttons.length === 0) {
-          return
-        }
-
-        buttonsByMapNumber.set(mapNumber, buttons)
-        markets.push(market)
-        volume += Number(market.volume ?? 0)
-      })
-
-    const mapNumbers = Array.from(buttonsByMapNumber.keys()).sort((left, right) => left - right)
-    if (mapNumbers.length === 0) {
-      return null
-    }
-
-    return {
-      key: CS2_MAP_WINNER_PANEL_KEY,
-      title: 'Map Winner',
-      markets,
-      buttons: mapNumbers.flatMap(mapNumber => buttonsByMapNumber.get(mapNumber) ?? []),
-      volume,
-      kind: 'cs2MapWinner',
-      mapNumber: null,
-      mapNumbers,
-      buttonsByMapNumber,
-    }
-  }, [activeCard.buttons, activeCard.detailMarkets, hasCs2SeparatedLayout])
+  }, [activeCard.buttons, activeCard.detailMarkets, activeCard.id, baseUsesSectionLayout, hasEsportsSegmentedLayout])
   const renderedAuxiliaryMarketCards = useMemo(() => {
-    if (!hasCs2SeparatedLayout) {
+    if (!hasEsportsSegmentedLayout) {
       return auxiliaryMarketCards
     }
 
-    if (activeCs2TabKey === 'series') {
-      const seriesCards = auxiliaryMarketCards.filter(entry => entry.mapNumber == null)
-      return cs2MapWinnerPanel ? [cs2MapWinnerPanel, ...seriesCards] : seriesCards
+    if (activeEsportsSegmentTabKey === 'series') {
+      return auxiliaryMarketCards.filter(entry => entry.mapNumber == null)
     }
 
-    if (activeCs2MapNumber == null) {
+    if (activeEsportsSegmentNumber == null) {
       return []
     }
 
-    return auxiliaryMarketCards.filter(entry => entry.mapNumber === activeCs2MapNumber)
-  }, [activeCs2MapNumber, activeCs2TabKey, auxiliaryMarketCards, cs2MapWinnerPanel, hasCs2SeparatedLayout])
-  const auxiliaryPanelsForSelection = useMemo(
-    () => cs2MapWinnerPanel ? [cs2MapWinnerPanel, ...auxiliaryMarketCards] : auxiliaryMarketCards,
-    [auxiliaryMarketCards, cs2MapWinnerPanel],
-  )
+    return auxiliaryMarketCards.filter(entry => entry.mapNumber === activeEsportsSegmentNumber)
+  }, [activeEsportsSegmentNumber, activeEsportsSegmentTabKey, auxiliaryMarketCards, hasEsportsSegmentedLayout])
+  const auxiliaryPanelsForSelection = auxiliaryMarketCards
   const auxiliaryPanelKeyByButtonKey = useMemo(() => {
     const map = new Map<string, string>()
 
@@ -1687,27 +1632,8 @@ export default function SportsEventCenter({
         && entry.buttons.some(button => button.key === marketSlugToButtonKey)
         ? marketSlugToButtonKey
         : null
-      const defaultButtonKey = entry.kind === 'cs2MapWinner'
-        ? (
-            entry.mapNumbers?.[0] != null
-              ? (entry.buttonsByMapNumber?.get(entry.mapNumbers[0])?.[0]?.key ?? entry.buttons[0]?.key ?? null)
-              : (entry.buttons[0]?.key ?? null)
-          )
-        : (entry.buttons[0]?.key ?? null)
-      const marketMatchedMarket = marketMatchedButton
-        ? (
-            detailMarketByConditionId.get(
-              activeCard.buttons.find(button => button.key === marketMatchedButton)?.conditionId ?? '',
-            ) ?? null
-          )
-        : null
-      const shouldUseMarketMatchedButton = marketMatchedButton != null
-        && (
-          entry.kind !== 'cs2MapWinner'
-          || isCs2ChildMoneylineMarket(marketMatchedMarket)
-        )
-
-      acc[entry.key] = shouldUseMarketMatchedButton ? marketMatchedButton : defaultButtonKey
+      const defaultButtonKey = entry.buttons[0]?.key ?? null
+      acc[entry.key] = marketMatchedButton ?? defaultButtonKey
       return acc
     }, {})
 
@@ -1738,16 +1664,7 @@ export default function SportsEventCenter({
         const matchedEntry = auxiliaryPanelsForSelection.find(entry =>
           entry.buttons.some(button => button.key === marketSlugToButtonKey),
         )
-        const marketMatchedMarket = detailMarketByConditionId.get(
-          activeCard.buttons.find(button => button.key === marketSlugToButtonKey)?.conditionId ?? '',
-        ) ?? null
-        if (
-          matchedEntry
-          && (
-            matchedEntry.kind !== 'cs2MapWinner'
-            || isCs2ChildMoneylineMarket(marketMatchedMarket)
-          )
-        ) {
+        if (matchedEntry) {
           next[matchedEntry.key] = marketSlugToButtonKey
         }
       }
@@ -1936,7 +1853,7 @@ export default function SportsEventCenter({
   ])
 
   useEffect(() => {
-    if (!hasCs2SeparatedLayout || !marketSlugToButtonKey) {
+    if (!hasEsportsSegmentedLayout || !marketSlugToButtonKey) {
       return
     }
 
@@ -1949,16 +1866,14 @@ export default function SportsEventCenter({
       return
     }
 
-    if (isCs2MapSpecificBinaryMarket(selectedMarket)) {
-      const mapNumber = parseCs2MapNumber(selectedMarket)
-      if (mapNumber != null) {
-        setActiveCs2TabKey(resolveCs2TabKey(mapNumber))
-      }
+    const mapNumber = parseEsportsSegmentNumber(selectedMarket)
+    if (mapNumber != null) {
+      setActiveEsportsSegmentTabKey(resolveEsportsSegmentTabKey(mapNumber))
       return
     }
 
-    setActiveCs2TabKey('series')
-  }, [activeCard.buttons, detailMarketByConditionId, hasCs2SeparatedLayout, marketSlugToButtonKey])
+    setActiveEsportsSegmentTabKey('series')
+  }, [activeCard.buttons, detailMarketByConditionId, hasEsportsSegmentedLayout, marketSlugToButtonKey])
 
   const moneylineButtonKey = selectedButtonBySection.moneyline ?? groupedButtons.moneyline[0]?.key ?? null
   const orderSelectionSyncKey = useMemo(() => {
@@ -2456,10 +2371,10 @@ export default function SportsEventCenter({
     setRedeemDefaultConditionId(normalizedConditionId)
     setRedeemSectionKey(matchedSection.key)
   }, [claimGroupsBySection, sectionConditionIdsByKey])
-  const cs2LayoutTabs = hasCs2SeparatedLayout
+  const esportsSegmentTabs = hasEsportsSegmentedLayout
     ? [
         { key: 'series' as const, label: 'Series Lines' },
-        ...cs2MapTabNumbers.map(mapNumber => ({ key: resolveCs2TabKey(mapNumber), label: `Map ${mapNumber}` })),
+        ...esportsSegmentTabNumbers.map(mapNumber => ({ key: resolveEsportsSegmentTabKey(mapNumber), label: `${segmentLabel} ${mapNumber}` })),
       ]
     : []
   const marketViewTabs = hasMultipleMarketViews
@@ -2487,17 +2402,17 @@ export default function SportsEventCenter({
         </div>
       )
     : null
-  const cs2EventTabs = cs2LayoutTabs.length > 1
+  const esportsEventTabs = esportsSegmentTabs.length > 1
     ? (
         <div className="mb-5 flex flex-wrap items-center gap-4 sm:gap-6">
-          {cs2LayoutTabs.map((tab) => {
-            const isActive = tab.key === activeCs2TabKey
+          {esportsSegmentTabs.map((tab) => {
+            const isActive = tab.key === activeEsportsSegmentTabKey
 
             return (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveCs2TabKey(tab.key)}
+                onClick={() => setActiveEsportsSegmentTabKey(tab.key)}
                 className={cn(
                   'text-sm font-semibold transition-colors sm:text-base',
                   isActive
@@ -2518,76 +2433,18 @@ export default function SportsEventCenter({
     const isOpen = openAuxiliaryConditionId === panelKey
     const activeTab = tabByAuxiliaryConditionId[panelKey] ?? 'orderBook'
     const isResolved = auxiliaryResolvedByConditionId.get(panelKey) === true
-    const isCs2MapWinnerPanel = entry.kind === 'cs2MapWinner'
-    const selectedButton = selectedButtonKey
-      ? (activeCard.buttons.find(button => button.key === selectedButtonKey) ?? null)
+    const singleConditionId = entry.markets.length === 1
+      ? entry.markets[0]?.condition_id ?? null
       : null
-    const selectedMarket = selectedButton
-      ? (detailMarketByConditionId.get(selectedButton.conditionId) ?? null)
-      : null
-    const selectedCs2MapWinnerNumber = isCs2MapWinnerPanel
-      ? (
-          parseCs2MapNumber(selectedMarket)
-          ?? entry.mapNumbers?.[0]
-          ?? null
-        )
-      : null
-    const selectedCs2MapWinnerButtons = (
-      isCs2MapWinnerPanel
-      && selectedCs2MapWinnerNumber != null
-      && entry.buttonsByMapNumber
-    )
-      ? (entry.buttonsByMapNumber.get(selectedCs2MapWinnerNumber) ?? [])
-      : entry.buttons
-    const selectedCs2MapWinnerMarket = (
-      isCs2MapWinnerPanel && selectedCs2MapWinnerNumber != null
-    )
-      ? (
-          entry.markets.find(market => parseCs2MapNumber(market) === selectedCs2MapWinnerNumber)
-          ?? null
-        )
-      : null
-    const singleConditionId = isCs2MapWinnerPanel
-      ? selectedCs2MapWinnerMarket?.condition_id ?? null
-      : entry.markets.length === 1
-        ? entry.markets[0]?.condition_id ?? null
-        : null
     const claimGroup = singleConditionId ? (auxiliaryClaimGroupsByConditionId.get(singleConditionId) ?? null) : null
-    const shouldShowRedeemButton = Boolean(singleConditionId && isResolved && claimGroup && !isCs2MapWinnerPanel)
-    const marketTitle = isCs2MapWinnerPanel
-      ? (
-          selectedCs2MapWinnerMarket?.short_title?.trim()
-          || selectedCs2MapWinnerMarket?.sports_group_item_title?.trim()
-          || selectedCs2MapWinnerMarket?.title
-          || entry.title
-        )
-      : entry.title
-    const panelVolume = Number(
-      isCs2MapWinnerPanel
-        ? (selectedCs2MapWinnerMarket?.volume ?? entry.volume)
-        : entry.volume,
-    )
-    const firstButtonKey = (isCs2MapWinnerPanel ? selectedCs2MapWinnerButtons : entry.buttons)[0]?.key ?? null
-    const selectedCs2MapWinnerIndex = entry.mapNumbers?.findIndex(mapNumber => mapNumber === selectedCs2MapWinnerNumber) ?? -1
+    const shouldShowRedeemButton = Boolean(singleConditionId && isResolved && claimGroup)
+    const marketTitle = entry.title
+    const panelVolume = Number(entry.volume)
+    const firstButtonKey = entry.buttons[0]?.key ?? null
+    const isMoneylinePanel = entry.buttons.every(button => button.marketType === 'moneyline')
 
     function toggleCondition() {
       setOpenAuxiliaryConditionId(current => current === panelKey ? null : panelKey)
-    }
-
-    function selectCs2MapWinnerMap(mapNumber: number) {
-      if (!isCs2MapWinnerPanel || !entry.buttonsByMapNumber) {
-        return
-      }
-
-      const targetButtons = entry.buttonsByMapNumber.get(mapNumber) ?? []
-      const nextButton = targetButtons.find(button => button.tone === selectedButton?.tone)
-        ?? targetButtons[0]
-        ?? null
-      if (!nextButton) {
-        return
-      }
-
-      updateAuxiliarySelection(panelKey, nextButton.key, { panelMode: 'preserve' })
     }
 
     function handleCardClick(event: React.MouseEvent<HTMLElement>) {
@@ -2614,218 +2471,6 @@ export default function SportsEventCenter({
         updateAuxiliarySelection(panelKey, firstButtonKey, { panelMode: 'preserve' })
       }
       toggleCondition()
-    }
-
-    if (isCs2MapWinnerPanel) {
-      return (
-        <article
-          key={`${activeCard.id}-${panelKey}`}
-          className="overflow-hidden rounded-xl border bg-card"
-        >
-          <div
-            className={cn(
-              `
-                flex w-full cursor-pointer flex-col items-stretch gap-3 px-4 py-[18px] transition-colors
-                sm:flex-row sm:items-center
-              `,
-              'hover:bg-secondary/30',
-            )}
-            role="button"
-            tabIndex={0}
-            onClick={handleCardClick}
-            onKeyDown={handleCardKeyDown}
-          >
-            <div className="min-w-0 text-left transition-colors hover:text-foreground/90">
-              <h3 className="text-sm font-semibold text-foreground">{marketTitle}</h3>
-              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                {formatVolume(panelVolume)}
-                {' '}
-                Vol.
-              </p>
-            </div>
-
-            {!isResolved && (
-              <div
-                className={cn(
-                  `
-                    grid w-full items-stretch gap-2
-                    sm:ml-auto sm:flex sm:w-auto sm:flex-none sm:flex-wrap sm:justify-end
-                  `,
-                  resolveMoneylineButtonGridClass(selectedCs2MapWinnerButtons.length),
-                )}
-              >
-                {selectedCs2MapWinnerButtons.map((button) => {
-                  const isActive = activeTradeButtonKey === button.key
-                  const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
-                    && (button.marketType === 'moneyline' || isActive)
-                  const buttonOverlayStyle = hasTeamColor
-                    ? resolveButtonOverlayStyle(button.color, button.tone)
-                    : undefined
-
-                  return (
-                    <div
-                      key={`${panelKey}-${button.key}`}
-                      className="relative w-full min-w-0 overflow-hidden rounded-lg pb-1.25 sm:w-[118px] sm:shrink-0"
-                    >
-                      <div
-                        className={cn(
-                          'pointer-events-none absolute inset-x-0 bottom-0 h-4 rounded-b-lg',
-                          !hasTeamColor && 'bg-border/70',
-                        )}
-                        style={hasTeamColor ? resolveButtonDepthStyle(button.color, button.tone) : undefined}
-                      />
-                      <button
-                        type="button"
-                        data-sports-card-control="true"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          updateAuxiliarySelection(panelKey, button.key, { panelMode: 'full' })
-                        }}
-                        style={hasTeamColor ? resolveButtonStyle(button.color, button.tone) : undefined}
-                        className={cn(
-                          `
-                            relative flex h-9 w-full translate-y-0 items-center justify-center rounded-lg px-2 text-xs
-                            font-semibold shadow-sm transition-transform duration-150 ease-out
-                            hover:translate-y-px
-                            active:translate-y-0.5
-                          `,
-                          !hasTeamColor && 'bg-secondary text-secondary-foreground hover:bg-accent',
-                        )}
-                      >
-                        {buttonOverlayStyle
-                          ? <span className="pointer-events-none absolute inset-0 rounded-lg" style={buttonOverlayStyle} />
-                          : null}
-                        <span className="relative z-1 mr-1 uppercase opacity-80">{button.label}</span>
-                        <span className={cn(
-                          'relative z-1 text-sm leading-none tabular-nums transition-opacity',
-                          isActive ? 'opacity-100' : 'opacity-45',
-                        )}
-                        >
-                          {formatButtonOdds(buttonPriceCentsByKey.get(button.key) ?? button.cents)}
-                        </span>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {(entry.mapNumbers?.length ?? 0) > 1 && (
-            <div className="border-t bg-card px-4 py-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  data-sports-card-control="true"
-                  onClick={() => {
-                    if (selectedCs2MapWinnerIndex > 0) {
-                      selectCs2MapWinnerMap(entry.mapNumbers![selectedCs2MapWinnerIndex - 1]!)
-                    }
-                  }}
-                  disabled={selectedCs2MapWinnerIndex <= 0}
-                  className={cn(
-                    `
-                      inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors
-                      focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none
-                    `,
-                    selectedCs2MapWinnerIndex > 0
-                      ? 'cursor-pointer hover:bg-muted/70 hover:text-foreground'
-                      : 'cursor-not-allowed opacity-40',
-                  )}
-                  aria-label="Previous map winner market"
-                >
-                  <ChevronLeftIcon className="size-4.5" />
-                </button>
-
-                <div className="flex flex-1 items-center justify-center gap-6">
-                  {entry.mapNumbers?.map((mapNumber) => {
-                    const isActive = mapNumber === selectedCs2MapWinnerNumber
-
-                    return (
-                      <button
-                        key={`${panelKey}-map-${mapNumber}`}
-                        type="button"
-                        data-sports-card-control="true"
-                        onClick={() => selectCs2MapWinnerMap(mapNumber)}
-                        className={cn(
-                          'relative min-w-6 text-center text-sm font-medium text-muted-foreground transition-colors',
-                          isActive ? 'text-2xl font-semibold text-foreground' : 'hover:text-foreground/80',
-                        )}
-                      >
-                        {isActive && (
-                          <span
-                            aria-hidden
-                            className="
-                              pointer-events-none absolute -top-3 left-1/2 h-2 w-3 -translate-x-1/2 bg-primary
-                              [clip-path:polygon(50%_100%,0_0,100%_0)]
-                            "
-                          />
-                        )}
-                        {mapNumber}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  data-sports-card-control="true"
-                  onClick={() => {
-                    if (
-                      entry.mapNumbers
-                      && selectedCs2MapWinnerIndex >= 0
-                      && selectedCs2MapWinnerIndex < entry.mapNumbers.length - 1
-                    ) {
-                      selectCs2MapWinnerMap(entry.mapNumbers[selectedCs2MapWinnerIndex + 1]!)
-                    }
-                  }}
-                  disabled={
-                    !entry.mapNumbers
-                    || selectedCs2MapWinnerIndex < 0
-                    || selectedCs2MapWinnerIndex >= entry.mapNumbers.length - 1
-                  }
-                  className={cn(
-                    `
-                      inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors
-                      focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none
-                    `,
-                    entry.mapNumbers
-                    && selectedCs2MapWinnerIndex >= 0
-                    && selectedCs2MapWinnerIndex < entry.mapNumbers.length - 1
-                      ? 'cursor-pointer hover:bg-muted/70 hover:text-foreground'
-                      : 'cursor-not-allowed opacity-40',
-                  )}
-                  aria-label="Next map winner market"
-                >
-                  <ChevronRightIcon className="size-4.5" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className={cn('bg-card px-2.5', isOpen ? 'border-t pt-3' : 'pt-0')}>
-            <SportsGameDetailsPanel
-              card={activeCard}
-              activeDetailsTab={activeTab}
-              selectedButtonKey={selectedButtonKey}
-              showBottomContent={isOpen}
-              defaultGraphTimeRange="ALL"
-              allowedConditionIds={new Set(singleConditionId ? [singleConditionId] : entry.markets.map(market => market.condition_id))}
-              showAboutTab
-              aboutEvent={activeCard.event}
-              rulesEvent={heroCard.event}
-              showRedeemInPositions
-              marketContextEnabled={marketContextEnabled}
-              onOpenRedeemForCondition={handleOpenRedeemForCondition}
-              oddsFormat={oddsFormat}
-              onChangeTab={tab => setTabByAuxiliaryConditionId(current => ({ ...current, [panelKey]: tab }))}
-              onSelectButton={(buttonKey, options) => {
-                updateAuxiliarySelection(panelKey, buttonKey, options)
-              }}
-            />
-          </div>
-        </article>
-      )
     }
 
     return (
@@ -2858,30 +2503,48 @@ export default function SportsEventCenter({
           {!isResolved && (
             <div
               className={cn(
-                'grid min-w-0 flex-1 items-stretch gap-2',
-                entry.buttons.length >= 3
-                  ? 'min-[1200px]:ml-auto min-[1200px]:w-[380px] min-[1200px]:flex-none'
-                  : 'min-[1200px]:ml-auto min-[1200px]:w-[248px] min-[1200px]:flex-none',
-                entry.buttons.length >= 3 ? 'grid-cols-3' : 'grid-cols-2',
+                isMoneylinePanel
+                  ? `
+                    grid w-full items-stretch gap-2
+                    sm:ml-auto sm:flex sm:w-auto sm:flex-none sm:flex-wrap sm:justify-end
+                  `
+                  : 'grid min-w-0 flex-1 items-stretch gap-2',
+                !isMoneylinePanel && (
+                  entry.buttons.length >= 3
+                    ? 'min-[1200px]:ml-auto min-[1200px]:w-[380px] min-[1200px]:flex-none'
+                    : 'min-[1200px]:ml-auto min-[1200px]:w-[248px] min-[1200px]:flex-none'
+                ),
+                isMoneylinePanel
+                  ? resolveMoneylineButtonGridClass(entry.buttons.length)
+                  : (entry.buttons.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'),
               )}
             >
               {entry.buttons.map((button) => {
                 const isActive = activeTradeButtonKey === button.key
+                const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
+                  && (button.marketType === 'moneyline' || isActive)
                 const isOverButton = isActive && button.tone === 'over'
                 const isUnderButton = isActive && button.tone === 'under'
+                const buttonOverlayStyle = hasTeamColor
+                  ? resolveButtonOverlayStyle(button.color, button.tone)
+                  : undefined
 
                 return (
                   <div
                     key={`${panelKey}-${button.key}`}
-                    className="relative min-w-0 overflow-hidden rounded-lg pb-1.25"
+                    className={cn(
+                      'relative min-w-0 overflow-hidden rounded-lg pb-1.25',
+                      isMoneylinePanel && 'w-full sm:w-[118px] sm:shrink-0',
+                    )}
                   >
                     <div
                       className={cn(
                         'pointer-events-none absolute inset-x-0 bottom-0 h-4 rounded-b-lg',
-                        !isOverButton && !isUnderButton && 'bg-border/70',
+                        !hasTeamColor && !isOverButton && !isUnderButton && 'bg-border/70',
                         isOverButton && 'bg-yes/70',
                         isUnderButton && 'bg-no/70',
                       )}
+                      style={hasTeamColor ? resolveButtonDepthStyle(button.color, button.tone) : undefined}
                     />
                     <button
                       type="button"
@@ -2890,23 +2553,47 @@ export default function SportsEventCenter({
                         event.stopPropagation()
                         updateAuxiliarySelection(panelKey, button.key, { panelMode: 'full' })
                       }}
+                      style={hasTeamColor ? resolveButtonStyle(button.color, button.tone) : undefined}
                       className={cn(
                         `
-                          relative flex h-9 w-full translate-y-0 items-center justify-between rounded-lg px-3 text-xs
-                          font-semibold shadow-sm transition-transform duration-150 ease-out
+                          relative flex h-9 w-full translate-y-0 items-center rounded-lg text-xs font-semibold shadow-sm
+                          transition-transform duration-150 ease-out
                           hover:translate-y-px
                           active:translate-y-0.5
                         `,
-                        !isOverButton && !isUnderButton
+                        isMoneylinePanel
+                          ? 'justify-center px-2'
+                          : 'justify-between px-3',
+                        !hasTeamColor && !isOverButton && !isUnderButton
                         && 'bg-secondary text-secondary-foreground hover:bg-accent',
                         isOverButton && 'bg-yes text-white hover:bg-yes-foreground',
                         isUnderButton && 'bg-no text-white hover:bg-no-foreground',
                       )}
                     >
-                      <span className="uppercase opacity-80">{button.label}</span>
-                      <span className="text-sm leading-none tabular-nums">
-                        {formatButtonOdds(buttonPriceCentsByKey.get(button.key) ?? button.cents)}
-                      </span>
+                      {buttonOverlayStyle
+                        ? <span className="pointer-events-none absolute inset-0 rounded-lg" style={buttonOverlayStyle} />
+                        : null}
+                      {isMoneylinePanel
+                        ? (
+                            <>
+                              <span className="relative z-1 mr-1 uppercase opacity-80">{button.label}</span>
+                              <span className={cn(
+                                'relative z-1 text-sm leading-none tabular-nums transition-opacity',
+                                isActive ? 'opacity-100' : 'opacity-45',
+                              )}
+                              >
+                                {formatButtonOdds(buttonPriceCentsByKey.get(button.key) ?? button.cents)}
+                              </span>
+                            </>
+                          )
+                        : (
+                            <>
+                              <span className="uppercase opacity-80">{button.label}</span>
+                              <span className="text-sm leading-none tabular-nums">
+                                {formatButtonOdds(buttonPriceCentsByKey.get(button.key) ?? button.cents)}
+                              </span>
+                            </>
+                          )}
                     </button>
                   </div>
                 )
@@ -2969,16 +2656,11 @@ export default function SportsEventCenter({
       </article>
     )
   })
-  const cs2SeriesMapWinnerPanel = hasCs2SeparatedLayout && activeCs2TabKey === 'series'
-    ? (auxiliaryMarketPanels[0] ?? null)
-    : null
-  const nonSectionAuxiliaryMarketPanels = hasCs2SeparatedLayout && activeCs2TabKey === 'series'
-    ? auxiliaryMarketPanels.slice(cs2SeriesMapWinnerPanel ? 1 : 0)
-    : auxiliaryMarketPanels
+  const nonSectionAuxiliaryMarketPanels = auxiliaryMarketPanels
   const marketPanelsContent = usesSectionLayout
     ? (
         <div key={activeMarketView?.key ?? 'gameLines'}>
-          {!hasCs2SeparatedLayout && (
+          {!hasEsportsSegmentedLayout && (
             <div className="mb-4 overflow-hidden rounded-xl border bg-card px-2.5">
               <SportsGameDetailsPanel
                 card={activeCard}
@@ -3000,9 +2682,6 @@ export default function SportsEventCenter({
           )}
 
           <div className="space-y-4">
-            {cs2SeriesMapWinnerPanel && !availableSections.some(section => section.key === 'moneyline') && (
-              <div>{cs2SeriesMapWinnerPanel}</div>
-            )}
             {availableSections.map((section) => {
               const sectionButtons = resolveSectionButtons(section.key)
               if (sectionButtons.length === 0) {
@@ -3019,10 +2698,10 @@ export default function SportsEventCenter({
               const shouldShowRedeemButton = isSectionResolved && sectionClaimGroups.length > 0
               const sectionTitle = isHalftimeResultView && section.key === 'moneyline'
                 ? 'Halftime Result'
-                : hasCs2SeparatedLayout && activeCs2TabKey === 'series' && section.key === 'spread'
-                  ? 'Map Handicap'
-                  : hasCs2SeparatedLayout && activeCs2TabKey === 'series' && section.key === 'total'
-                    ? 'Total Maps'
+                : hasEsportsSegmentedLayout && activeEsportsSegmentTabKey === 'series' && section.key === 'spread'
+                  ? `${segmentLabel} Handicap`
+                  : hasEsportsSegmentedLayout && activeEsportsSegmentTabKey === 'series' && section.key === 'total'
+                    ? `Total ${segmentPluralLabel}`
                     : section.label
               const shouldUseClosedLinePickerSpacing = (
                 !isSectionResolved
@@ -3301,8 +2980,6 @@ export default function SportsEventCenter({
                       />
                     </div>
                   </article>
-
-                  {section.key === 'moneyline' && cs2SeriesMapWinnerPanel}
                 </div>
               )
             })}
@@ -3602,7 +3279,7 @@ export default function SportsEventCenter({
           </div>
 
           {marketViewTabs}
-          {cs2EventTabs}
+          {esportsEventTabs}
           {marketPanelsContent}
 
           <div className="mt-6 grid gap-6">
