@@ -2616,7 +2616,8 @@ export default function SportsEventCenter({
               <div className="flex flex-wrap justify-end gap-2 sm:ml-auto sm:flex-none">
                 {selectedCs2MapWinnerButtons.map((button) => {
                   const isActive = activeTradeButtonKey === button.key
-                  const hasTeamColor = isActive && (button.tone === 'team1' || button.tone === 'team2')
+                  const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
+                    && (button.marketType === 'moneyline' || isActive)
                   const buttonOverlayStyle = hasTeamColor
                     ? resolveButtonOverlayStyle(button.color, button.tone)
                     : undefined
@@ -3063,8 +3064,8 @@ export default function SportsEventCenter({
                                 <div className="flex flex-wrap justify-end gap-2">
                                   {sectionButtons.map((button) => {
                                     const isActive = activeTradeButtonKey === button.key
-                                    const hasTeamColor = isActive
-                                      && (button.tone === 'team1' || button.tone === 'team2')
+                                    const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
+                                      && (button.marketType === 'moneyline' || isActive)
                                     const isOverButton = isActive && button.tone === 'over'
                                     const isUnderButton = isActive && button.tone === 'under'
                                     const buttonOverlayStyle = hasTeamColor
@@ -3126,8 +3127,8 @@ export default function SportsEventCenter({
                               )
                             : sectionButtons.map((button) => {
                                 const isActive = activeTradeButtonKey === button.key
-                                const hasTeamColor = isActive
-                                  && (button.tone === 'team1' || button.tone === 'team2')
+                                const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
+                                  && (button.marketType === 'moneyline' || isActive)
                                 const isOverButton = isActive && button.tone === 'over'
                                 const isUnderButton = isActive && button.tone === 'under'
                                 const buttonOverlayStyle = hasTeamColor
