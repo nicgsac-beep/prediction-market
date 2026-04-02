@@ -2000,17 +2000,40 @@ function resolveEsportsTradeHeaderTeamLabel(
   return resolveTeamShortLabel(name, abbreviation)
 }
 
-function resolveEsportsTradeHeaderTitle(card: SportsGamesCard) {
+const COMPACT_COMBAT_TRADE_HEADER_SPORT_SLUGS = new Set([
+  'boxing',
+  'mma',
+  'ufc',
+  'zuffa',
+])
+
+function resolveCompactTradeHeaderTitle(
+  card: SportsGamesCard,
+  resolveTeamLabel: (
+    name: string | null | undefined,
+    abbreviation: string | null | undefined,
+  ) => string | null,
+) {
   const team1 = card.teams[0] ?? null
   const team2 = card.teams[1] ?? null
-  const leftLabel = resolveEsportsTradeHeaderTeamLabel(team1?.name, team1?.abbreviation)
-  const rightLabel = resolveEsportsTradeHeaderTeamLabel(team2?.name, team2?.abbreviation)
+  const leftLabel = resolveTeamLabel(team1?.name, team1?.abbreviation)
+  const rightLabel = resolveTeamLabel(team2?.name, team2?.abbreviation)
 
   if (!leftLabel || !rightLabel) {
     return null
   }
 
   return `${leftLabel} vs ${rightLabel}`
+}
+
+function shouldUseCompactTradeHeaderTitle(card: SportsGamesCard, vertical: SportsVertical | null) {
+  if (vertical === 'esports') {
+    return true
+  }
+
+  return COMPACT_COMBAT_TRADE_HEADER_SPORT_SLUGS.has(
+    normalizeComparableText(card.event.sports_sport_slug),
+  )
 }
 
 function escapeRegExp(value: string) {
@@ -2074,10 +2097,13 @@ function resolveTradeHeaderTitle({
     tags: card.event.tags,
     mainTag: card.event.main_tag,
   })
-  if (vertical === 'esports') {
-    const compactEsportsTitle = resolveEsportsTradeHeaderTitle(card)
-    if (compactEsportsTitle) {
-      return compactEsportsTitle
+  if (shouldUseCompactTradeHeaderTitle(card, vertical)) {
+    const compactTitle = resolveCompactTradeHeaderTitle(
+      card,
+      vertical === 'esports' ? resolveEsportsTradeHeaderTeamLabel : resolveTeamShortLabel,
+    )
+    if (compactTitle) {
+      return compactTitle
     }
   }
 
