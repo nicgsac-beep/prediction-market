@@ -12,6 +12,7 @@ interface EventOrderPanelSubmitButtonProps {
   label?: string
   type?: 'button' | 'submit'
   selectedAccent?: EventOrderPanelOutcomeSelectedAccent | null
+  styleVariant?: 'default' | 'sports3d'
 }
 
 export default function EventOrderPanelSubmitButton({
@@ -21,19 +22,21 @@ export default function EventOrderPanelSubmitButton({
   label,
   type = 'submit',
   selectedAccent = null,
+  styleVariant = 'default',
 }: EventOrderPanelSubmitButtonProps) {
   const t = useExtracted()
-  const hasSelectedAccent = Boolean(selectedAccent)
+  const useSportsDepth = styleVariant === 'sports3d'
+  const sports3dShadowStyle = useSportsDepth
+    ? { boxShadow: 'inset 0 -5px 0 0 rgb(0 0 0 / 0.2)' }
+    : undefined
 
   return (
-    <div className="relative w-full pb-1.25">
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-x-0 bottom-0 h-4 rounded-b-md',
-          hasSelectedAccent ? 'bg-transparent' : 'bg-primary/80',
-        )}
-        style={selectedAccent?.depthStyle}
-      />
+    <div className={cn('relative w-full', !useSportsDepth && 'pb-1.25')}>
+      {!useSportsDepth && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-4 rounded-b-md bg-primary/80"
+        />
+      )}
       <Button
         type={type}
         size="outcomeLg"
@@ -48,10 +51,13 @@ export default function EventOrderPanelSubmitButton({
             active:translate-y-0.5
             disabled:opacity-100
           `,
-          hasSelectedAccent ? 'hover:brightness-95' : 'hover:bg-primary',
+          useSportsDepth ? 'hover:brightness-95' : 'hover:bg-primary',
+          useSportsDepth && 'shadow-none',
           selectedAccent?.buttonClassName,
         )}
-        style={selectedAccent?.buttonStyle}
+        style={selectedAccent
+          ? { ...selectedAccent.buttonStyle, ...sports3dShadowStyle }
+          : sports3dShadowStyle}
       >
         {selectedAccent?.overlayStyle && (
           <span

@@ -39,11 +39,11 @@ export default function EventOrderPanelOutcomeButton({
     : formatOddsFromPrice(price, oddsFormat)
   const selectedAccentConfig = isSelected ? selectedAccent : null
   const hasSelectedAccent = Boolean(selectedAccentConfig)
+  const sports3dShadowStyle = useSportsDepth
+    ? { boxShadow: 'inset 0 -5px 0 0 rgb(0 0 0 / 0.2)' }
+    : undefined
 
   if (useSportsDepth) {
-    const depthClass = isSelected
-      ? (hasSelectedAccent ? 'bg-transparent' : (variant === 'yes' ? 'bg-yes/70' : 'bg-no/70'))
-      : 'bg-border/70'
     const toneClass = isSelected
       ? (hasSelectedAccent
           ? cn('hover:brightness-95', selectedAccentConfig?.buttonClassName)
@@ -53,27 +53,22 @@ export default function EventOrderPanelOutcomeButton({
       : 'bg-secondary text-secondary-foreground hover:bg-accent'
 
     return (
-      <div className="relative min-w-0 flex-1 overflow-hidden rounded-lg pb-1.25">
-        <div
-          className={cn(
-            'pointer-events-none absolute inset-x-0 bottom-0 h-4 rounded-b-lg',
-            depthClass,
-          )}
-          style={selectedAccentConfig?.depthStyle}
-        />
+      <div className="relative min-w-0 flex-1">
         <button
           type="button"
           className={cn(
             `
               relative flex h-[48px] w-full translate-y-0 items-center justify-center gap-1 overflow-hidden rounded-lg
-              px-3 text-sm font-semibold whitespace-nowrap shadow-sm transition-transform duration-150 ease-out
+              px-3 text-sm font-semibold whitespace-nowrap shadow-none transition-transform duration-150 ease-out
               hover:translate-y-px
               focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none
               active:translate-y-0.5
             `,
             toneClass,
           )}
-          style={selectedAccentConfig?.buttonStyle}
+          style={selectedAccentConfig
+            ? { ...selectedAccentConfig.buttonStyle, ...sports3dShadowStyle }
+            : sports3dShadowStyle}
           onClick={onSelect}
         >
           {selectedAccentConfig?.overlayStyle && (

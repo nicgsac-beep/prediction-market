@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { CheckIcon, TriangleAlertIcon } from 'lucide-react'
 import { useExtracted, useLocale } from 'next-intl'
 import Form from 'next/form'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { hashTypedData } from 'viem'
 import { useSignMessage, useSignTypedData } from 'wagmi'
@@ -264,11 +264,11 @@ export default function EventOrderPanelForm({
     ? activeMarket.neg_risk
     : Boolean(event.enable_neg_risk || event.neg_risk)
 
-  function resolveDisplayOutcomeLabel(
+  const resolveDisplayOutcomeLabel = useCallback((
     outcomeIndex: number | null | undefined,
     outcomeText: string | null | undefined,
     fallbackLabel: string,
-  ) {
+  ) => {
     const override = outcomeIndex == null
       ? ''
       : (outcomeLabelOverrides[outcomeIndex]?.trim() ?? '')
@@ -278,7 +278,7 @@ export default function EventOrderPanelForm({
 
     const normalized = outcomeText ? normalizeOutcomeLabel(outcomeText) : ''
     return normalized || outcomeText || fallbackLabel
-  }
+  }, [normalizeOutcomeLabel, outcomeLabelOverrides])
   const isResolvedMarket = Boolean(activeMarket?.is_resolved || activeMarket?.condition?.resolved)
   const isTweetMarketEvent = useMemo(
     () => isTweetMarketsEvent(event),
@@ -355,10 +355,9 @@ export default function EventOrderPanelForm({
     return null
   }, [
     inferredTweetResolvedOutcomeIndex,
-    normalizeOutcomeLabel,
-    outcomeLabelOverrides,
     resolvedDisplay.outcomeLabel,
     resolvedOutcomeIndex,
+    resolveDisplayOutcomeLabel,
     t,
   ])
   const shouldShowResolvedSportsSubtitle = Boolean(
@@ -615,7 +614,7 @@ export default function EventOrderPanelForm({
       position?.outcome_text,
       resolvedOutcomeLabel ?? '',
     )
-  }, [claimablePositionsForMarket, normalizeOutcomeLabel, outcomeLabelOverrides, resolvedOutcomeIndex, resolvedOutcomeLabel])
+  }, [claimablePositionsForMarket, resolveDisplayOutcomeLabel, resolvedOutcomeIndex, resolvedOutcomeLabel])
   const yesPositionLabel = useMemo(
     () =>
       formatSharesLabel(yesPositionShares, {
@@ -1744,6 +1743,7 @@ export default function EventOrderPanelForm({
                 isLoading={state.isLoading}
                 isDisabled={state.isLoading}
                 selectedAccent={selectedSubmitAccent}
+                styleVariant={outcomeButtonStyleVariant}
                 onClick={(event) => {
                   if (!isInteractiveWalletReady) {
                     void open()
