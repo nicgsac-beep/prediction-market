@@ -1,3 +1,4 @@
+import type { SportsVertical } from '@/lib/sports-vertical'
 import { NextResponse } from 'next/server'
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/i18n/locales'
 import { DEFAULT_ERROR_MESSAGE } from '@/lib/constants'
@@ -20,6 +21,10 @@ export async function GET(request: Request) {
   const statusParam = searchParams.get('status')
   const status = statusParam ?? 'active'
   const sportsSportSlug = searchParams.get('sportsSportSlug') || ''
+  const sportsVerticalParam = searchParams.get('sportsVertical') || ''
+  const sportsVertical: SportsVertical | '' = sportsVerticalParam === 'sports' || sportsVerticalParam === 'esports'
+    ? sportsVerticalParam
+    : ''
   const sportsSectionParam = searchParams.get('sportsSection') || ''
   const sportsSection = sportsSectionParam.trim().toLowerCase()
   const sortParam = searchParams.get('sort')
@@ -92,6 +97,7 @@ export async function GET(request: Request) {
       offset: clampedOffset,
       limit,
       locale,
+      sportsVertical,
       sportsSportSlug,
       sportsSection: (sportsSection === 'games' || sportsSection === 'props') ? sportsSection : '',
     })

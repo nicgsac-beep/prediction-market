@@ -47,6 +47,7 @@ export default async function EsportsGamesBySportPage({
 
   const commonParams = {
     tag: 'esports' as const,
+    sportsVertical: 'esports' as const,
     search: '',
     userId: '',
     bookmarked: false,

@@ -18,6 +18,7 @@ export default async function EsportsSoonPage({ params }: { params: Promise<{ lo
   const [{ data: events }, { data: layoutData }] = await Promise.all([
     EventRepository.listEvents({
       tag: 'esports',
+      sportsVertical: 'esports',
       search: '',
       userId: '',
       bookmarked: false,

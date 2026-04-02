@@ -65,6 +65,7 @@ export default async function EsportsGamesBySportWeekPage({
 
   const commonParams = {
     tag: 'esports' as const,
+    sportsVertical: 'esports' as const,
     search: '',
     userId: '',
     bookmarked: false,

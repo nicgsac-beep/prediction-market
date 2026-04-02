@@ -3,6 +3,7 @@ import type { SupportedLocale } from '@/i18n/locales'
 import type { conditions } from '@/lib/db/schema/events/tables'
 import type { EventListSortBy, EventListStatusFilter } from '@/lib/event-list-filters'
 import type { SportsSlugResolver } from '@/lib/sports-slug-mapping'
+import type { SportsVertical } from '@/lib/sports-vertical'
 import type { ConditionChangeLogEntry, Event, EventLiveChartConfig, EventSeriesEntry, QueryResult } from '@/types'
 import { and, asc, count, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm'
 import { cacheTag } from 'next/cache'
@@ -374,6 +375,7 @@ interface ListEventsProps {
   locale?: SupportedLocale
   sportsSportSlug?: string
   sportsSection?: 'games' | 'props' | ''
+  sportsVertical?: SportsVertical | ''
 }
 
 interface RelatedEventOptions {
@@ -388,6 +390,7 @@ interface ListEventMarketSlugsProps {
   sportsSection?: 'games' | 'props' | ''
   sportsSportSlug?: string
   status?: EventListStatusFilter
+  sportsVertical?: SportsVertical | ''
 }
 
 interface ListAdminEventsParams {
@@ -776,6 +779,26 @@ function buildSportsSlugMatchCondition(sportsSportSlugCandidates: string[]) {
     : sportsDirectSlugCondition
 }
 
+function buildSportsVerticalTagCondition(sportsVertical: SportsVertical | '' | undefined) {
+  if (sportsVertical !== 'sports' && sportsVertical !== 'esports') {
+    return null
+  }
+
+  const hasEsportsTag = exists(
+    db.select()
+      .from(event_tags)
+      .innerJoin(tags, eq(event_tags.tag_id, tags.id))
+      .where(and(
+        eq(event_tags.event_id, events.id),
+        eq(tags.slug, 'esports'),
+      )),
+  )
+
+  return sportsVertical === 'esports'
+    ? hasEsportsTag
+    : sql`NOT ${hasEsportsTag}`
+}
+
 function toOptionalIsoString(value: unknown): string | null {
   if (!value) {
     return null
@@ -1145,6 +1168,7 @@ async function buildEventListQueryContext({
   status = 'active',
   sportsSportSlug = '',
   sportsSection = '',
+  sportsVertical = '',
   hideSports = false,
   hideCrypto = false,
   hideEarnings = false,
@@ -1254,6 +1278,11 @@ async function buildEventListQueryContext({
           )),
       ),
     )
+  }
+
+  const sportsVerticalCondition = buildSportsVerticalTagCondition(sportsVertical)
+  if (sportsVerticalCondition) {
+    whereConditions.push(sportsVerticalCondition)
   }
 
   if (tag && tag !== 'trending' && tag !== 'new') {
@@ -1402,6 +1431,7 @@ export const EventRepository = {
     locale = DEFAULT_LOCALE,
     sportsSportSlug = '',
     sportsSection = '',
+    sportsVertical = '',
   }: ListEventsProps): Promise<QueryResult<Event[]>> {
     'use cache'
     cacheTag(cacheTags.events(userId || 'guest'))
@@ -1497,6 +1527,11 @@ export const EventRepository = {
               )),
           ),
         )
+      }
+
+      const sportsVerticalCondition = buildSportsVerticalTagCondition(sportsVertical)
+      if (sportsVerticalCondition) {
+        whereConditions.push(sportsVerticalCondition)
       }
 
       if (tag && tag !== 'trending' && tag !== 'new') {
@@ -1783,6 +1818,7 @@ export const EventRepository = {
     sportsSection = '',
     sportsSportSlug = '',
     status = 'active',
+    sportsVertical = '',
   }: ListEventMarketSlugsProps): Promise<QueryResult<string[]>> {
     'use cache'
     cacheTag(cacheTags.eventsGlobal)
@@ -1794,6 +1830,7 @@ export const EventRepository = {
         locale,
         sportsSportSlug,
         sportsSection,
+        sportsVertical,
       })
 
       if (empty) {

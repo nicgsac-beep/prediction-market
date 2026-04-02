@@ -118,6 +118,7 @@ export default async function SportsEventMarketPage({
     SportsMenuRepository.getLayoutData('sports'),
     EventRepository.listEvents({
       tag: 'sports',
+      sportsVertical: 'sports',
       search: '',
       userId: '',
       bookmarked: false,
