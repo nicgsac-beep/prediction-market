@@ -169,6 +169,11 @@ function normalizeText(value: string | null | undefined) {
     ?? ''
 }
 
+function tokenizeNormalizedText(value: string | null | undefined) {
+  const normalized = normalizeText(value)
+  return normalized ? normalized.split(' ').filter(Boolean) : []
+}
+
 function toTitleCaseWords(value: string) {
   return value
     .split(/\s+/)
@@ -369,7 +374,38 @@ function toTeamButtonLabel(team: SportsGamesTeam | null, fallback: string) {
   return fallback
 }
 
-function doesMarketMatchTeam(market: Market, team: SportsGamesTeam) {
+function isSameSportsGamesTeam(left: SportsGamesTeam, right: SportsGamesTeam) {
+  return normalizeText(left.name) === normalizeText(right.name)
+    && normalizeText(left.abbreviation) === normalizeText(right.abbreviation)
+}
+
+function resolveDistinctiveTeamNameTokens(team: SportsGamesTeam | null, teams: SportsGamesTeam[]) {
+  if (!team) {
+    return []
+  }
+
+  const teamTokens = tokenizeNormalizedText(team.name)
+    .filter(token => token.length >= 3)
+
+  if (teamTokens.length === 0) {
+    return []
+  }
+
+  const otherTokens = new Set(
+    teams
+      .filter(otherTeam => !isSameSportsGamesTeam(otherTeam, team))
+      .flatMap(otherTeam => tokenizeNormalizedText(otherTeam.name))
+      .filter(token => token.length >= 3),
+  )
+
+  return teamTokens.filter(token => !otherTokens.has(token))
+}
+
+function doesMarketMatchTeam(
+  market: Market,
+  team: SportsGamesTeam,
+  teams: SportsGamesTeam[] = [team],
+) {
   if (isDrawMarket(market)) {
     return false
   }
@@ -385,15 +421,19 @@ function doesMarketMatchTeam(market: Market, team: SportsGamesTeam) {
   }
 
   const normalizedAbbreviation = normalizeText(team.abbreviation)
-  if (!normalizedAbbreviation) {
-    return false
+  const haystackTokens = new Set(tokenizeNormalizedText(haystack))
+  if (normalizedAbbreviation && haystackTokens.has(normalizedAbbreviation)) {
+    return true
   }
 
-  const haystackTokens = new Set(haystack.split(' ').filter(Boolean))
-  return haystackTokens.has(normalizedAbbreviation)
+  return resolveDistinctiveTeamNameTokens(team, teams).some(token => haystackTokens.has(token))
 }
 
-function doesTextExactlyMatchTeam(value: string | null | undefined, team: SportsGamesTeam | null) {
+function doesTextExactlyMatchTeam(
+  value: string | null | undefined,
+  team: SportsGamesTeam | null,
+  teams: SportsGamesTeam[] = team ? [team] : [],
+) {
   if (!value || !team) {
     return false
   }
@@ -409,11 +449,19 @@ function doesTextExactlyMatchTeam(value: string | null | undefined, team: Sports
   }
 
   const normalizedAbbreviation = normalizeText(team.abbreviation)
-  return Boolean(normalizedAbbreviation && normalizedValue === normalizedAbbreviation)
+  if (normalizedAbbreviation && normalizedValue === normalizedAbbreviation) {
+    return true
+  }
+
+  return resolveDistinctiveTeamNameTokens(team, teams).includes(normalizedValue)
 }
 
-function doesMarketExactlyMatchTeam(market: Market, team: SportsGamesTeam | null) {
-  return marketTitleTexts(market).some(value => doesTextExactlyMatchTeam(value, team))
+function doesMarketExactlyMatchTeam(
+  market: Market,
+  team: SportsGamesTeam | null,
+  teams: SportsGamesTeam[] = team ? [team] : [],
+) {
+  return marketTitleTexts(market).some(value => doesTextExactlyMatchTeam(value, team, teams))
 }
 
 function isSeparatedMoneylineCandidate(market: Market, teams: SportsGamesTeam[]) {
@@ -429,7 +477,7 @@ function isSeparatedMoneylineCandidate(market: Market, teams: SportsGamesTeam[])
     return true
   }
 
-  return teams.some(team => doesMarketExactlyMatchTeam(market, team))
+  return teams.some(team => doesMarketExactlyMatchTeam(market, team, teams))
 }
 
 function dedupeMarketsByConditionId(markets: Market[]) {
@@ -630,16 +678,17 @@ function resolveAuxiliaryMarketTone(
   team1: SportsGamesTeam | null,
   team2: SportsGamesTeam | null,
 ): SportsGamesButton['tone'] {
+  const teams = [team1, team2].filter((team): team is SportsGamesTeam => Boolean(team))
   const normalizedLabel = normalizeText(label)
   if (normalizedLabel.includes('draw')) {
     return 'draw'
   }
 
-  if (doesTextMatchTeam(label, team1)) {
+  if (doesTextMatchTeam(label, team1, teams)) {
     return 'team1'
   }
 
-  if (doesTextMatchTeam(label, team2)) {
+  if (doesTextMatchTeam(label, team2, teams)) {
     return 'team2'
   }
 
@@ -796,7 +845,7 @@ function buildStandaloneAuxiliaryButtons(
     orderedOutcomes.forEach((outcome, index) => {
       const outcomeText = outcome.outcome_text?.trim() ?? ''
       const normalizedOutcomeText = normalizeText(outcomeText)
-      const matchedTeam = teams.find(team => doesTextMatchTeam(outcomeText, team)) ?? null
+      const matchedTeam = teams.find(team => doesTextMatchTeam(outcomeText, team, teams)) ?? null
       const fallbackTeam = index === 0 ? team1 : index === orderedOutcomes.length - 1 ? team2 : null
       const resolvedTeam = matchedTeam ?? fallbackTeam
       const isDrawOutcome = normalizedOutcomeText.includes('draw')
@@ -899,7 +948,11 @@ function resolvePrimaryTeams(teams: SportsGamesTeam[]) {
   return { team1, team2 }
 }
 
-function doesTextMatchTeam(value: string | null | undefined, team: SportsGamesTeam | null) {
+function doesTextMatchTeam(
+  value: string | null | undefined,
+  team: SportsGamesTeam | null,
+  teams: SportsGamesTeam[] = team ? [team] : [],
+) {
   if (!value || !team) {
     return false
   }
@@ -915,12 +968,12 @@ function doesTextMatchTeam(value: string | null | undefined, team: SportsGamesTe
   }
 
   const normalizedAbbreviation = normalizeText(team.abbreviation)
-  if (!normalizedAbbreviation) {
-    return false
+  const haystackTokens = new Set(tokenizeNormalizedText(haystack))
+  if (normalizedAbbreviation && haystackTokens.has(normalizedAbbreviation)) {
+    return true
   }
 
-  const haystackTokens = new Set(haystack.split(' ').filter(Boolean))
-  return haystackTokens.has(normalizedAbbreviation)
+  return resolveDistinctiveTeamNameTokens(team, teams).some(token => haystackTokens.has(token))
 }
 
 function extractSignedLineFromText(value: string) {
@@ -1055,10 +1108,10 @@ function buildMoneylineButtons(
     }
 
     const hasTeam1Outcome = team1
-      ? market.outcomes.some(outcome => doesTextMatchTeam(outcome.outcome_text, team1))
+      ? market.outcomes.some(outcome => doesTextMatchTeam(outcome.outcome_text, team1, teams))
       : false
     const hasTeam2Outcome = team2
-      ? market.outcomes.some(outcome => doesTextMatchTeam(outcome.outcome_text, team2))
+      ? market.outcomes.some(outcome => doesTextMatchTeam(outcome.outcome_text, team2, teams))
       : false
 
     return hasTeam1Outcome && hasTeam2Outcome
@@ -1070,7 +1123,7 @@ function buildMoneylineButtons(
 
     orderedOutcomes.forEach((outcome, index) => {
       const outcomeText = outcome.outcome_text?.trim() ?? ''
-      const matchedTeam = teams.find(team => doesTextMatchTeam(outcomeText, team)) ?? null
+      const matchedTeam = teams.find(team => doesTextMatchTeam(outcomeText, team, teams)) ?? null
       const normalizedOutcomeText = normalizeText(outcomeText)
       const isDrawOutcome = normalizedOutcomeText.includes('draw')
       const fallbackTeam = index === 0 ? team1 : index === orderedOutcomes.length - 1 ? team2 : null
@@ -1114,9 +1167,9 @@ function buildMoneylineButtons(
   }
 
   const nonDrawMarkets = candidates.filter(market => !isStandaloneDrawMarket(market))
-  const team1Market = team1 ? nonDrawMarkets.find(market => doesMarketMatchTeam(market, team1)) : undefined
+  const team1Market = team1 ? nonDrawMarkets.find(market => doesMarketMatchTeam(market, team1, teams)) : undefined
   const team2Market = team2
-    ? nonDrawMarkets.find(market => market !== team1Market && doesMarketMatchTeam(market, team2))
+    ? nonDrawMarkets.find(market => market !== team1Market && doesMarketMatchTeam(market, team2, teams))
     : undefined
   const drawMarket = candidates.find(market => isStandaloneDrawMarket(market))
 
@@ -1156,7 +1209,7 @@ function buildMoneylineButtons(
       continue
     }
 
-    const matchedTeam = teams.find(team => doesMarketMatchTeam(market, team)) ?? null
+    const matchedTeam = teams.find(team => doesMarketMatchTeam(market, team, teams)) ?? null
     const fallbackLabel = isDrawMarket(market)
       ? 'DRAW'
       : matchedTeam
@@ -1243,9 +1296,9 @@ function buildSpreadButtons(
           : (outcome.outcome_index === 0 ? fallbackSignedLine : -fallbackSignedLine)
       )
 
-      const matchedTeam = (team1 && doesTextMatchTeam(outcomeText, team1))
+      const matchedTeam = (team1 && doesTextMatchTeam(outcomeText, team1, teams))
         ? team1
-        : (team2 && doesTextMatchTeam(outcomeText, team2))
+        : (team2 && doesTextMatchTeam(outcomeText, team2, teams))
             ? team2
             : null
       const fallbackTeam = outcome.outcome_index === 0 ? team1 : team2
@@ -1424,9 +1477,9 @@ function buildHalftimeResultButtons(
   const { team1, team2 } = resolvePrimaryTeams(teams)
   const drawMarket = markets.find(market => isDrawMarket(market) || hasMarketSlugSuffix(market, '-draw')) ?? null
   let team1Market = markets.find(market => hasMarketSlugSuffix(market, '-home'))
-    ?? (team1 ? markets.find(market => doesMarketMatchTeam(market, team1)) : undefined)
+    ?? (team1 ? markets.find(market => doesMarketMatchTeam(market, team1, teams)) : undefined)
   let team2Market = markets.find(market => hasMarketSlugSuffix(market, '-away'))
-    ?? (team2 ? markets.find(market => doesMarketMatchTeam(market, team2)) : undefined)
+    ?? (team2 ? markets.find(market => doesMarketMatchTeam(market, team2, teams)) : undefined)
 
   const remainingNonDrawMarkets = markets.filter(market =>
     market.condition_id !== drawMarket?.condition_id
