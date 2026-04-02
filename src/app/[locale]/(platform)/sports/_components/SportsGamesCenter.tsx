@@ -4295,6 +4295,11 @@ export default function SportsGamesCenter({
       }
     }
 
+    if (isMobile && isLivePage) {
+      router.push(card.eventHref as Route)
+      return
+    }
+
     if (card.event.sports_ended === true) {
       const shouldOpen = openCardId !== card.id
       setOpenCardId(shouldOpen ? card.id : null)
