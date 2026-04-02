@@ -751,6 +751,31 @@ function buildSportsTagsMatchCondition(sportsSportSlugCandidates: string[]) {
   `
 }
 
+function buildSportsSlugMatchCondition(sportsSportSlugCandidates: string[]) {
+  if (sportsSportSlugCandidates.length === 0) {
+    return null
+  }
+
+  const normalizedSportsSportSlugColumn = sql<string>`
+    LOWER(TRIM(COALESCE(${event_sports.sports_sport_slug}, '')))
+  `
+  const normalizedSportsSeriesSlugColumn = sql<string>`
+    LOWER(TRIM(COALESCE(${event_sports.sports_series_slug}, '')))
+  `
+  const sportsSportSlugCondition = sportsSportSlugCandidates.length === 1
+    ? eq(normalizedSportsSportSlugColumn, sportsSportSlugCandidates[0]!)
+    : inArray(normalizedSportsSportSlugColumn, sportsSportSlugCandidates)
+  const sportsSeriesSlugCondition = sportsSportSlugCandidates.length === 1
+    ? eq(normalizedSportsSeriesSlugColumn, sportsSportSlugCandidates[0]!)
+    : inArray(normalizedSportsSeriesSlugColumn, sportsSportSlugCandidates)
+  const sportsDirectSlugCondition = or(sportsSportSlugCondition, sportsSeriesSlugCondition)
+  const sportsTagsMatchCondition = buildSportsTagsMatchCondition(sportsSportSlugCandidates)
+
+  return sportsTagsMatchCondition
+    ? or(sportsDirectSlugCondition, sportsTagsMatchCondition)
+    : sportsDirectSlugCondition
+}
+
 function toOptionalIsoString(value: unknown): string | null {
   if (!value) {
     return null
@@ -1192,16 +1217,14 @@ async function buildEventListQueryContext({
     }
   }
   if (sportsSportSlugCandidates.length > 0) {
-    const normalizedSportsSportSlugColumn = sql<string>`
-      LOWER(TRIM(COALESCE(${event_sports.sports_sport_slug}, '')))
-    `
-    const sportsSportSlugCondition = sportsSportSlugCandidates.length === 1
-      ? eq(normalizedSportsSportSlugColumn, sportsSportSlugCandidates[0]!)
-      : inArray(normalizedSportsSportSlugColumn, sportsSportSlugCandidates)
-    const sportsTagsMatchCondition = buildSportsTagsMatchCondition(sportsSportSlugCandidates)
-    const sportsSlugOrTagCondition = sportsTagsMatchCondition
-      ? or(sportsSportSlugCondition, sportsTagsMatchCondition)
-      : sportsSportSlugCondition
+    const sportsSlugOrTagCondition = buildSportsSlugMatchCondition(sportsSportSlugCandidates)
+    if (!sportsSlugOrTagCondition) {
+      return {
+        baseWhere: undefined,
+        empty: true,
+        sportsSlugResolver,
+      }
+    }
     whereConditions.push(
       exists(
         db.select({ event_id: event_sports.event_id })
@@ -1441,16 +1464,10 @@ export const EventRepository = {
         return { data: [], error: null }
       }
       if (sportsSportSlugCandidates.length > 0) {
-        const normalizedSportsSportSlugColumn = sql<string>`
-          LOWER(TRIM(COALESCE(${event_sports.sports_sport_slug}, '')))
-        `
-        const sportsSportSlugCondition = sportsSportSlugCandidates.length === 1
-          ? eq(normalizedSportsSportSlugColumn, sportsSportSlugCandidates[0]!)
-          : inArray(normalizedSportsSportSlugColumn, sportsSportSlugCandidates)
-        const sportsTagsMatchCondition = buildSportsTagsMatchCondition(sportsSportSlugCandidates)
-        const sportsSlugOrTagCondition = sportsTagsMatchCondition
-          ? or(sportsSportSlugCondition, sportsTagsMatchCondition)
-          : sportsSportSlugCondition
+        const sportsSlugOrTagCondition = buildSportsSlugMatchCondition(sportsSportSlugCandidates)
+        if (!sportsSlugOrTagCondition) {
+          return { data: [], error: null }
+        }
         whereConditions.push(
           exists(
             db.select({ event_id: event_sports.event_id })

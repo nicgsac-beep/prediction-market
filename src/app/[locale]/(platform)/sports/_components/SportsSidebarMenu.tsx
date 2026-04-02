@@ -13,6 +13,11 @@ import Image from 'next/image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AppLink from '@/components/AppLink'
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
+import {
+  isSportsSidebarFutureHref,
+  isSportsSidebarLiveHref,
+  resolveSportsSidebarCountKey,
+} from '@/lib/sports-sidebar-counts'
 import { getSportsVerticalConfig } from '@/lib/sports-vertical'
 import { cn } from '@/lib/utils'
 
@@ -60,11 +65,11 @@ function isGroupEntry(entry: SportsMenuEntry): entry is SportsMenuGroupEntry {
 }
 
 function isLiveMenuHref(value: string, vertical: SportsVertical) {
-  return value === normalizeTagSlug(getSportsVerticalConfig(vertical).livePath)
+  return isSportsSidebarLiveHref(value, vertical)
 }
 
 function isFutureMenuLinkHref(value: string, vertical: SportsVertical) {
-  return value.startsWith(normalizeTagSlug(getSportsVerticalConfig(vertical).futurePathPrefix))
+  return isSportsSidebarFutureHref(value, vertical)
 }
 
 function isMenuLinkActive({
@@ -126,14 +131,19 @@ function isMenuEntryActive({
 
 function resolveLinkEventsCount(
   entry: SportsMenuRenderableLinkEntry,
+  vertical: SportsVertical,
   countByTagSlug?: Record<string, number>,
 ) {
-  const menuSlug = normalizeTagSlug(entry.menuSlug)
-  if (!menuSlug) {
+  const countKey = resolveSportsSidebarCountKey({
+    href: entry.href,
+    menuSlug: entry.menuSlug,
+    vertical,
+  })
+  if (!countKey) {
     return null
   }
 
-  const count = countByTagSlug?.[menuSlug]
+  const count = countByTagSlug?.[countKey]
   if (typeof count !== 'number' || !Number.isFinite(count)) {
     return null
   }
@@ -143,13 +153,14 @@ function resolveLinkEventsCount(
 
 function resolveGroupEventsCount(
   entry: SportsMenuGroupEntry,
+  vertical: SportsVertical,
   countByTagSlug?: Record<string, number>,
 ) {
   let total = 0
   let hasCount = false
 
   for (const link of entry.links) {
-    const count = resolveLinkEventsCount(link, countByTagSlug)
+    const count = resolveLinkEventsCount(link, vertical, countByTagSlug)
     if (count == null) {
       continue
     }
@@ -413,7 +424,7 @@ function SportsMobileSheetLink({
   const isFutureLink = isFutureMenuLinkHref(href, vertical)
   const futureIconVariant = vertical === 'esports' ? 'upcoming' : 'futures'
   const isActive = isMenuLinkActive({ entry, vertical, mode, activeTagSlug })
-  const displayCount = resolveLinkEventsCount(entry, countByTagSlug)
+  const displayCount = resolveLinkEventsCount(entry, vertical, countByTagSlug)
 
   return (
     <AppLink
@@ -480,7 +491,7 @@ function SportsMenuLink({
   const isFutureLink = isFutureMenuLinkHref(href, vertical)
   const futureIconVariant = vertical === 'esports' ? 'upcoming' : 'futures'
   const isActive = isMenuLinkActive({ entry, vertical, mode, activeTagSlug })
-  const displayCount = resolveLinkEventsCount(entry, countByTagSlug)
+  const displayCount = resolveLinkEventsCount(entry, vertical, countByTagSlug)
 
   if (nested) {
     return (
@@ -816,7 +827,7 @@ export default function SportsSidebarMenu({
 
       const isExpanded = expandedGroupId === entry.id
       const isGroupActive = isMenuGroupActive(entry, activeTagSlug)
-      const groupCount = resolveGroupEventsCount(entry, countByTagSlug)
+      const groupCount = resolveGroupEventsCount(entry, vertical, countByTagSlug)
 
       return (
         <div key={entry.id}>
