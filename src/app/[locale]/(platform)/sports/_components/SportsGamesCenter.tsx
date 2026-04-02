@@ -93,7 +93,7 @@ import {
   resolveSportsTeamFallbackOverlayStyle,
 } from '@/lib/sports-team-colors'
 import { shouldUseCroppedSportsTeamLogo } from '@/lib/sports-team-logo'
-import { getSportsVerticalConfig } from '@/lib/sports-vertical'
+import { getSportsVerticalConfig, resolveSportsVerticalFromTags } from '@/lib/sports-vertical'
 import { cn } from '@/lib/utils'
 import { useOrder } from '@/stores/useOrder'
 import { useSportsLivestream } from '@/stores/useSportsLivestream'
@@ -1963,6 +1963,36 @@ function resolveTeamShortLabel(name: string | null | undefined, abbreviation: st
   return compactName.slice(0, 3)
 }
 
+function resolveEsportsTradeHeaderTeamLabel(
+  name: string | null | undefined,
+  abbreviation: string | null | undefined,
+) {
+  const trimmedAbbreviation = abbreviation?.trim()
+  if (trimmedAbbreviation) {
+    return trimmedAbbreviation
+      .toUpperCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/([A-Z]+)(\d+)$/u, '$1 $2')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  return resolveTeamShortLabel(name, abbreviation)
+}
+
+function resolveEsportsTradeHeaderTitle(card: SportsGamesCard) {
+  const team1 = card.teams[0] ?? null
+  const team2 = card.teams[1] ?? null
+  const leftLabel = resolveEsportsTradeHeaderTeamLabel(team1?.name, team1?.abbreviation)
+  const rightLabel = resolveEsportsTradeHeaderTeamLabel(team2?.name, team2?.abbreviation)
+
+  if (!leftLabel || !rightLabel) {
+    return null
+  }
+
+  return `${leftLabel} vs ${rightLabel}`
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -2020,6 +2050,17 @@ function resolveTradeHeaderTitle({
 
   const team1 = card.teams[0] ?? null
   const team2 = card.teams[1] ?? null
+  const vertical = resolveSportsVerticalFromTags({
+    tags: card.event.tags,
+    mainTag: card.event.main_tag,
+  })
+  if (vertical === 'esports') {
+    const compactEsportsTitle = resolveEsportsTradeHeaderTitle(card)
+    if (compactEsportsTitle) {
+      return compactEsportsTitle
+    }
+  }
+
   const fullMatchupTitle = card.title?.trim()
     || [team1?.name?.trim(), team2?.name?.trim()].filter(Boolean).join(' vs ')
 
