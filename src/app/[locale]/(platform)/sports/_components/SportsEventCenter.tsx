@@ -149,6 +149,18 @@ function normalizeSportsMarketType(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? ''
 }
 
+function resolveMoneylineButtonGridClass(buttonCount: number) {
+  if (buttonCount <= 1) {
+    return 'grid-cols-1'
+  }
+
+  if (buttonCount === 2) {
+    return 'grid-cols-2'
+  }
+
+  return 'grid-cols-3'
+}
+
 function parseCs2MapNumber(market: SportsGamesCard['detailMarkets'][number] | null | undefined) {
   if (!market) {
     return null
@@ -2633,7 +2645,15 @@ export default function SportsEventCenter({
             </div>
 
             {!isResolved && (
-              <div className="flex flex-wrap justify-end gap-2 sm:ml-auto sm:flex-none">
+              <div
+                className={cn(
+                  `
+                    grid w-full items-stretch gap-2
+                    sm:ml-auto sm:flex sm:w-auto sm:flex-none sm:flex-wrap sm:justify-end
+                  `,
+                  resolveMoneylineButtonGridClass(selectedCs2MapWinnerButtons.length),
+                )}
+              >
                 {selectedCs2MapWinnerButtons.map((button) => {
                   const isActive = activeTradeButtonKey === button.key
                   const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
@@ -2645,7 +2665,7 @@ export default function SportsEventCenter({
                   return (
                     <div
                       key={`${panelKey}-${button.key}`}
-                      className="relative w-[118px] shrink-0 overflow-hidden rounded-lg pb-1.25"
+                      className="relative w-full min-w-0 overflow-hidden rounded-lg pb-1.25 sm:w-[118px] sm:shrink-0"
                     >
                       <div
                         className={cn(
@@ -3081,7 +3101,12 @@ export default function SportsEventCenter({
                         >
                           {section.key === 'moneyline'
                             ? (
-                                <div className="flex flex-wrap justify-end gap-2">
+                                <div
+                                  className={cn(
+                                    'grid w-full items-stretch gap-2 sm:flex sm:flex-wrap sm:justify-end',
+                                    resolveMoneylineButtonGridClass(sectionButtons.length),
+                                  )}
+                                >
                                   {sectionButtons.map((button) => {
                                     const isActive = activeTradeButtonKey === button.key
                                     const hasTeamColor = (button.tone === 'team1' || button.tone === 'team2')
@@ -3095,7 +3120,10 @@ export default function SportsEventCenter({
                                     return (
                                       <div
                                         key={`${section.key}-${button.key}`}
-                                        className="relative w-[118px] shrink-0 overflow-hidden rounded-lg pb-1.25"
+                                        className="
+                                          relative w-full min-w-0 overflow-hidden rounded-lg pb-1.25
+                                          sm:w-[118px] sm:shrink-0
+                                        "
                                       >
                                         <div
                                           className={cn(

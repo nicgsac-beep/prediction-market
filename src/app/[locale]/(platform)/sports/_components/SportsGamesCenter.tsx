@@ -399,6 +399,18 @@ function normalizeHexColor(value: string | null | undefined) {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(withHash) ? withHash : null
 }
 
+function resolveMoneylineButtonGridClass(buttonCount: number) {
+  if (buttonCount <= 1) {
+    return 'grid-cols-1'
+  }
+
+  if (buttonCount === 2) {
+    return 'grid-cols-2'
+  }
+
+  return 'grid-cols-3'
+}
+
 export function resolveButtonStyle(
   color: string | null,
   tone?: SportsGamesButton['tone'],
@@ -4815,7 +4827,12 @@ export default function SportsGamesCenter({
                       key={`${card.id}-${column.key}`}
                       className={cn(
                         'w-full gap-2',
-                        isMoneylineOnlyLayout ? 'flex flex-wrap justify-end' : 'flex flex-col',
+                        isMoneylineOnlyLayout
+                          ? cn(
+                              'grid sm:flex sm:flex-wrap sm:justify-end',
+                              resolveMoneylineButtonGridClass(renderedButtons.length),
+                            )
+                          : 'flex flex-col',
                       )}
                     >
                       {renderedButtons.map((button) => {
@@ -4834,7 +4851,9 @@ export default function SportsGamesCenter({
                             key={button.key}
                             className={cn(
                               'relative overflow-hidden rounded-lg pb-1.25',
-                              isMoneylineOnlyLayout ? 'min-w-[88px] shrink-0 sm:min-w-[104px]' : 'w-full',
+                              isMoneylineOnlyLayout
+                                ? 'w-full min-w-0 sm:w-auto sm:min-w-[104px] sm:shrink-0'
+                                : 'w-full',
                             )}
                           >
                             <div
