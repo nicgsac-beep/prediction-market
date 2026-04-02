@@ -903,7 +903,7 @@ export default function SportsSidebarMenu({
   return (
     <>
       <Drawer open={isMobileMoreMenuOpen} onOpenChange={setIsMobileMoreMenuOpen}>
-        <nav className="mb-3 pb-2 lg:hidden">
+        <nav className="mb-3 pb-2 min-[1200px]:hidden">
           <div
             ref={mobileQuickMenuContainerRef}
             className="grid min-w-0 items-stretch"
@@ -963,12 +963,14 @@ export default function SportsSidebarMenu({
           'hidden w-[190px] shrink-0',
           independentScroll
             ? `
-              lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:justify-start lg:overflow-y-auto lg:overscroll-contain lg:pt-2
-              lg:pb-8
+              min-[1200px]:flex min-[1200px]:h-full min-[1200px]:min-h-0 min-[1200px]:flex-col
+              min-[1200px]:justify-start min-[1200px]:overflow-y-auto min-[1200px]:overscroll-contain min-[1200px]:pt-2
+              min-[1200px]:pb-8
             `
             : `
-              lg:sticky lg:top-22 lg:flex lg:h-[calc(100vh-5.5rem)] lg:flex-col lg:justify-start lg:overflow-y-auto
-              lg:overscroll-contain lg:py-8
+              min-[1200px]:sticky min-[1200px]:top-22 min-[1200px]:flex min-[1200px]:h-[calc(100vh-5.5rem)]
+              min-[1200px]:flex-col min-[1200px]:justify-start min-[1200px]:overflow-y-auto
+              min-[1200px]:overscroll-contain min-[1200px]:py-8
             `,
         )}
       >

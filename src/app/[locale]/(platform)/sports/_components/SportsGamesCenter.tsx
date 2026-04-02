@@ -4383,11 +4383,6 @@ export default function SportsGamesCenter({
       }
     }
 
-    if (isMobile && isFeedPage) {
-      router.push(card.eventHref as Route)
-      return
-    }
-
     if (card.event.sports_ended === true) {
       const shouldOpen = openCardId !== card.id
       setOpenCardId(shouldOpen ? card.id : null)
@@ -4584,8 +4579,8 @@ export default function SportsGamesCenter({
             }
           }}
         >
-          <div className="mb-2 flex flex-col items-stretch justify-between gap-2.5 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="mb-2 flex items-start justify-between gap-2 sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               {options.topBadgeMode === 'live'
                 ? isFinalizedCard
                   ? (
@@ -4628,7 +4623,7 @@ export default function SportsGamesCenter({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex shrink-0 items-start gap-2 sm:items-center">
               {canWatchLivestream && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -4667,9 +4662,9 @@ export default function SportsGamesCenter({
                 onClick={event => event.stopPropagation()}
                 className={cn(
                   `
-                    hidden items-center gap-1 rounded-lg bg-secondary/80 px-2.5 py-1.5 text-xs font-semibold
+                    inline-flex shrink-0 items-center gap-1 rounded-lg bg-secondary/80 px-2 py-1.5 text-xs font-semibold
                     text-foreground transition-colors
-                    min-[1024px]:inline-flex
+                    sm:px-2.5
                   `,
                   'hover:bg-secondary hover:ring-1 hover:ring-border',
                 )}
@@ -5210,16 +5205,16 @@ export default function SportsGamesCenter({
     <>
       <div className="
         min-[1200px]:grid min-[1200px]:h-full min-[1200px]:min-h-0 min-[1200px]:grid-cols-[minmax(0,1fr)_21.25rem]
-        min-[1200px]:[align-content:start] min-[1200px]:[align-items:start] min-[1200px]:gap-6
+        min-[1200px]:grid-rows-[minmax(0,1fr)] min-[1200px]:[align-content:start] min-[1200px]:items-stretch
+        min-[1200px]:gap-6
       "
       >
         <section
           data-sports-scroll-pane="center"
           className="
             min-w-0
-            min-[1200px]:min-h-0 min-[1200px]:self-stretch min-[1200px]:overflow-y-auto min-[1200px]:overscroll-contain
-            min-[1200px]:pr-1
-            lg:ml-4
+            min-[1200px]:ml-4 min-[1200px]:min-h-0 min-[1200px]:self-stretch min-[1200px]:overflow-y-auto
+            min-[1200px]:overscroll-contain min-[1200px]:pr-1
           "
         >
           <div className="mb-4">
@@ -5227,7 +5222,7 @@ export default function SportsGamesCenter({
               ? (
                   <div className={cn(
                     'mb-3 flex items-start justify-between gap-3',
-                    !isFeedPage && 'lg:mt-2',
+                    !isFeedPage && 'min-[1200px]:mt-2',
                   )}
                   >
                     <h1 className="text-3xl font-semibold tracking-tight text-foreground">
