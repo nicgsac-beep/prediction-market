@@ -5075,7 +5075,7 @@ export default function SportsGamesCenter({
       <div
         ref={searchShellRef}
         className={cn(
-          'relative flex items-center',
+          'relative isolate z-0 flex items-center',
           isPillVariant ? 'h-12' : 'h-11',
           className,
         )}
@@ -5142,7 +5142,7 @@ export default function SportsGamesCenter({
           }}
           className={cn(
             headerIconButtonClass,
-            'relative z-20',
+            'relative',
             isSearchOpen && 'pointer-events-none opacity-0',
             isPillVariant && 'size-12 rounded-sm border-0 bg-transparent text-foreground hover:bg-card',
           )}
