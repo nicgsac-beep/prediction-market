@@ -1,6 +1,7 @@
 'use cache'
 
 import type { Metadata, Viewport } from 'next'
+import { Analytics } from '@vercel/analytics/next'
 import { hasLocale, NextIntlClientProvider } from 'next-intl'
 import { setRequestLocale } from 'next-intl/server'
 import { cacheTag } from 'next/cache'
@@ -103,6 +104,7 @@ export default async function LocaleLayout({ params, children }: LayoutProps<'/[
             </AppProviders>
           </NextIntlClientProvider>
         </SiteIdentityProvider>
+        <Analytics />
       </body>
     </html>
   )
